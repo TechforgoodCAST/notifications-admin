@@ -271,6 +271,7 @@ class HeaderNavigation(Navigation):
         'no_cookie.send_test_preview',
         'send_from_contact_list',
         'send_uploaded_letter',
+        'sending_bulk_messages',
         'service_add_email_reply_to',
         'service_add_letter_contact',
         'service_add_sms_sender',

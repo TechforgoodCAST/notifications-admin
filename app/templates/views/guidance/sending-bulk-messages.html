@@ -1,0 +1,23 @@
+{% extends "content_template.html" %}
+
+{% block per_page_title %}
+  Sending bulk messages
+{% endblock %}
+
+{% block content_column_content %}
+
+  <h1 class="heading-large">Sending bulk messages</h1>
+
+  <p class="govuk-body"><a class="govuk-link govuk-link--no-visited-state" href="{{ url_for('main.register') }}">Create an account</a> to see a short tutorial explaining how to create and send messages.</p>
+
+  <h2 class="heading-medium" id="bulk-sending">Bulk sending</h2>
+
+  <p class="govuk-body">To send a batch of messages at once:</p>
+  <ol class="list list-number">
+    <li>Go to the {{ service_link(current_service, 'main.choose_template', 'templates') }} page and create a new template (or choose an existing one).</li>
+    <li>Select <b class="govuk-!-font-weight-bold">Send</b>.</li>
+    <li>If you’re sending emails, select <b class="govuk-!-font-weight-bold">Upload a list of email addresses</b>.
+      If you’re sending text messages, select <b class="govuk-!-font-weight-bold">Upload a list of phone numbers</b>.</li>
+    <li>You will then be propted to upload CSV a list of email addresss or phone numbers, as well as the details of any placeholders your templates uses (there is an example CSV you can download).</li>
+  </ol>
+  {% endblock %}

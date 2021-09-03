@@ -63,6 +63,10 @@ def using_notify_nav():
                 {
                     "name": "Formatting",
                     "link": "main.edit_and_format_messages",
+                },
+                {
+                    "name": "Sending bulk messages",
+                    "link": "main.sending_bulk_messages",
                 }
             ]
         },
