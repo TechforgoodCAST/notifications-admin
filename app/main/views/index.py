@@ -368,7 +368,7 @@ def create_and_send_messages():
 
 
 @main.route('/using-notify/guidance/sending-bulk-messages')
-def edit_and_format_messages():
+def sending_bulk_messages():
     return render_template(
         'views/guidance/sending-bulk-messages.html',
         navigation_links=using_notify_nav(),
@@ -381,6 +381,7 @@ def edit_and_format_messages():
         'views/guidance/edit-and-format-messages.html',
         navigation_links=using_notify_nav(),
     )
+
 
 @main.route('/using-notify/guidance/send-files-by-email')
 def send_files_by_email():
