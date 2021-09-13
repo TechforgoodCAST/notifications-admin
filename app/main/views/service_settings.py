@@ -30,6 +30,7 @@ from app import (
 from app.formatters import email_safe
 from app.main import main
 from app.main.forms import (
+    BillingDetailsForm,
     BrandingOptions,
     ConfirmPasswordForm,
     EditNotesForm,
@@ -41,7 +42,6 @@ from app.main.forms import (
     RateLimit,
     RenameServiceForm,
     SearchByNameForm,
-    BillingDetailsForm,
     ServiceContactDetailsForm,
     ServiceDataRetentionEditForm,
     ServiceDataRetentionForm,
