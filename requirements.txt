@@ -120,7 +120,7 @@ notifications-python-client==6.2.1
     # via -r requirements.in
 https://github.com/bitzesty/notifications-utils/archive/catalyst.zip
     # via -r requirements.in
-openpyxl==3.0.5
+openpyxl==3.0.7
     # via pyexcel-xlsx
 orderedset==2.0.3
     # via notifications-utils
