@@ -116,7 +116,7 @@ mistune==0.8.4
     # via notifications-utils
 monotonic==1.5
     # via notifications-python-client
-notifications-python-client==5.7.1
+notifications-python-client==6.2.1
     # via -r requirements.in
 https://github.com/bitzesty/notifications-utils/archive/catalyst.zip
     # via -r requirements.in
