@@ -45,7 +45,7 @@ class Organisation(JSONModel):
         'billing_contact_names',
         'billing_reference',
         'purchase_order_number',
-        'notes'
+        'notes',
     }
 
     @classmethod
