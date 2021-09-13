@@ -680,6 +680,7 @@ def test_organisation_settings_for_platform_admin(
         'Sector Charity Change',
         'Data sharing and financial agreement Not signed Change',
         'Request to go live notes None Change',
+        'Billing details No billing details yet Change billing details for the organisation',
         'Notes No notes yet Change the notes for the organisation',
         'Default email branding GOV.UK Change',
         'Default letter branding No branding Change',
