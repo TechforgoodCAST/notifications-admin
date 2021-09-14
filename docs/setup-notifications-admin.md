@@ -24,9 +24,9 @@ source env/bin/activate
 The notifications-admin application uses the node package manager (`npm`) to install and update front-end dependencies. To gain access to `npm` we must install `Node.js`. Please visit the [official Node.js download page](https://nodejs.org/en/download/) to download and install `Node.js` for your operating system.
 
 ## Bootstrapping the `notifications-admin` application for local development
-Next, we can run the one-off `scripts/bootstrap.sh` script, configuring our local development environment with minimal fuss and effort.
+Next, we can install dependencies, configuring our local development environment with minimal fuss and effort.
 ```
-scripts/bootstrap.sh
+make bootstrap
 ```
 
 ## How to run the application
