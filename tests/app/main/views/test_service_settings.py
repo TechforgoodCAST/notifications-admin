@@ -48,6 +48,7 @@ def mock_get_service_settings_page_common(
     mock_get_inbound_number_for_service,
     mock_get_free_sms_fragment_limit,
     mock_get_service_data_retention,
+    mock_get_organisation,
 ):
     return
 
@@ -114,7 +115,6 @@ def test_should_show_overview(
         api_user_active,
         no_reply_to_email_addresses,
         no_letter_contact_blocks,
-        mock_get_organisation,
         single_sms_sender,
         user,
         expected_rows,
@@ -149,7 +149,6 @@ def test_platform_admin_sees_only_relevant_settings_for_broadcast_service(
         api_user_active,
         no_reply_to_email_addresses,
         no_letter_contact_blocks,
-        mock_get_organisation,
         single_sms_sender,
         mock_get_service_settings_page_common,
 ):
@@ -220,7 +219,6 @@ def test_organisation_name_links_to_org_dashboard(
     single_sms_sender,
     mock_get_service_settings_page_common,
     mocker,
-    mock_get_organisation,
 ):
     service_one = service_json(SERVICE_ONE_ID,
                                permissions=['sms', 'email'],
@@ -249,7 +247,6 @@ def test_send_files_by_email_row_on_settings_page(
     single_sms_sender,
     mock_get_service_settings_page_common,
     mocker,
-    mock_get_organisation,
     service_contact_link,
     expected_text
 ):
@@ -334,7 +331,6 @@ def test_should_show_overview_for_service_with_more_things_set(
         single_reply_to_email_address,
         single_letter_contact_block,
         single_sms_sender,
-        mock_get_organisation,
         mock_get_email_branding,
         mock_get_service_settings_page_common,
         permissions,
@@ -356,7 +352,6 @@ def test_if_cant_send_letters_then_cant_see_letter_contact_block(
         service_one,
         single_reply_to_email_address,
         no_letter_contact_blocks,
-        mock_get_organisation,
         single_sms_sender,
         mock_get_service_settings_page_common,
 ):
@@ -509,7 +504,6 @@ def test_show_restricted_service(
     service_one,
     single_reply_to_email_address,
     single_letter_contact_block,
-    mock_get_organisation,
     single_sms_sender,
     mock_get_service_settings_page_common,
     user,
@@ -541,7 +535,6 @@ def test_show_restricted_broadcast_service(
     service_one,
     single_reply_to_email_address,
     single_letter_contact_block,
-    mock_get_organisation,
     single_sms_sender,
     mock_get_service_settings_page_common,
 ):
@@ -588,7 +581,6 @@ def test_show_live_service(
     mock_get_live_service,
     single_reply_to_email_address,
     single_letter_contact_block,
-    mock_get_organisation,
     single_sms_sender,
     mock_get_service_settings_page_common,
 ):
@@ -1895,7 +1887,6 @@ def test_route_permissions(
         service_one,
         single_reply_to_email_address,
         single_letter_contact_block,
-        mock_get_organisation,
         mock_get_invites_for_service,
         single_sms_sender,
         route,
@@ -1960,7 +1951,6 @@ def test_route_for_platform_admin(
         service_one,
         single_reply_to_email_address,
         single_letter_contact_block,
-        mock_get_organisation,
         single_sms_sender,
         route,
         mock_get_service_settings_page_common,
@@ -1985,7 +1975,6 @@ def test_and_more_hint_appears_on_settings_with_more_than_just_a_single_sender(
         service_one,
         multiple_reply_to_email_addresses,
         multiple_letter_contact_blocks,
-        mock_get_organisation,
         multiple_sms_senders,
         mock_get_service_settings_page_common,
 ):
@@ -3043,7 +3032,6 @@ def test_does_not_show_research_mode_indicator(
     client_request,
     single_reply_to_email_address,
     single_letter_contact_block,
-    mock_get_organisation,
     single_sms_sender,
     mock_get_service_settings_page_common,
 ):
@@ -3885,7 +3873,6 @@ def test_archive_service_prompts_user(
     mocker,
     single_reply_to_email_address,
     single_letter_contact_block,
-    mock_get_organisation,
     single_sms_sender,
     mock_get_service_settings_page_common,
     user,
@@ -3921,7 +3908,6 @@ def test_cant_archive_inactive_service(
     service_one,
     single_reply_to_email_address,
     single_letter_contact_block,
-    mock_get_organisation,
     single_sms_sender,
     mock_get_service_settings_page_common
 ):
@@ -3955,7 +3941,6 @@ def test_suspend_service_prompts_user(
     mocker,
     single_reply_to_email_address,
     single_letter_contact_block,
-    mock_get_organisation,
     single_sms_sender,
     mock_get_service_settings_page_common,
 ):
@@ -3975,7 +3960,6 @@ def test_cant_suspend_inactive_service(
     service_one,
     single_reply_to_email_address,
     single_letter_contact_block,
-    mock_get_organisation,
     single_sms_sender,
     mock_get_service_settings_page_common,
 ):
@@ -4012,7 +3996,6 @@ def test_resume_service_prompts_user(
     service_one,
     single_reply_to_email_address,
     single_letter_contact_block,
-    mock_get_organisation,
     single_sms_sender,
     mocker,
     mock_get_service_settings_page_common,
@@ -4034,7 +4017,6 @@ def test_cant_resume_active_service(
     service_one,
     single_reply_to_email_address,
     single_letter_contact_block,
-    mock_get_organisation,
     single_sms_sender,
     mock_get_service_settings_page_common
 ):
@@ -4075,7 +4057,6 @@ def test_send_files_by_email_contact_details_updates_contact_details_and_redirec
     service_one,
     mock_update_service,
     mock_get_service_settings_page_common,
-    mock_get_organisation,
     no_reply_to_email_addresses,
     no_letter_contact_blocks,
     single_sms_sender,
@@ -4103,7 +4084,6 @@ def test_send_files_by_email_contact_details_uses_the_selected_field_when_multip
     service_one,
     mock_update_service,
     mock_get_service_settings_page_common,
-    mock_get_organisation,
     no_reply_to_email_addresses,
     no_letter_contact_blocks,
     single_sms_sender,
@@ -4197,7 +4177,6 @@ def test_contact_link_is_not_displayed_without_the_upload_document_permission(
     client_request,
     service_one,
     mock_get_service_settings_page_common,
-    mock_get_organisation,
     no_reply_to_email_addresses,
     no_letter_contact_blocks,
     single_sms_sender,
@@ -5000,7 +4979,6 @@ def test_service_settings_links_to_branding_request_page_for_letters(
     no_letter_contact_blocks,
     single_sms_sender,
     mock_get_service_settings_page_common,
-    mock_get_organisation,
 ):
     service_one["restricted"] is False
     service_one['permissions'].append('letter')
@@ -5125,7 +5103,6 @@ def test_service_settings_links_to_edit_service_notes_page_for_platform_admins(
     no_letter_contact_blocks,
     single_sms_sender,
     mock_get_service_settings_page_common,
-    mock_get_organisation,
 ):
     response = platform_admin_client.get(url_for(
         '.service_settings', service_id=SERVICE_ONE_ID
@@ -5173,7 +5150,6 @@ def test_service_settings_links_to_edit_service_billing_details_page_for_platfor
     no_letter_contact_blocks,
     single_sms_sender,
     mock_get_service_settings_page_common,
-    mock_get_organisation,
 ):
     response = platform_admin_client.get(url_for(
         '.service_settings', service_id=SERVICE_ONE_ID
