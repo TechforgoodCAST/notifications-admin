@@ -35,10 +35,10 @@ Once you've completed the steps above, you're ready to run the admin app locally
 
 Since the `notifications-admin` app is a front-end to the `notifications-api` app, you'll need to have the `notifications-api` app running in another terminal window.  
 
-Once `notifications-api` is running and listening on port 6011, we can start `notifications-admin` on port 6012 using a helpful `run_app.sh` script.
+Once `notifications-api` is running and listening on port 6011, we can start `notifications-admin` on port 6012 using this command.
 
 ```
-scripts/run_app.sh
+make run-flask
 ```
 
 You should be able to view the `notifications-admin` app on http://localhost:6012
