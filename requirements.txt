@@ -8,7 +8,7 @@ ago==0.0.93
     # via -r requirements.in
 awscli-cwlogs==1.4.6
     # via -r requirements.in
-awscli==1.19.84
+awscli==1.19.22
     # via
     #   awscli-cwlogs
     #   notifications-utils
@@ -18,25 +18,22 @@ blinker==1.4
     # via
     #   -r requirements.in
     #   gds-metrics
-    #   sentry-sdk
-boto3==1.17.84
+boto3==1.17.22
     # via notifications-utils
-botocore==1.20.84
+botocore==1.20.22
     # via
     #   awscli
     #   boto3
     #   s3transfer
-cachetools==4.2.2
+cachetools==4.2.1
     # via notifications-utils
 certifi==2020.12.5
-    # via
-    #   requests
-    #   sentry-sdk
+    # via requests
 chardet==4.0.0
     # via requests
 click==7.1.2
     # via flask
-colorama==0.4.4
+colorama==0.4.3
     # via awscli
 dnspython==1.16.0
     # via eventlet
@@ -62,9 +59,6 @@ flask==1.1.2
     #   flask-wtf
     #   gds-metrics
     #   notifications-utils
-    #   sentry-sdk
-future==0.18.2
-    # via notifications-python-client
 gds-metrics==0.2.4
     # via -r requirements.in
 geojson==2.5.0
@@ -75,7 +69,7 @@ govuk-bank-holidays==0.8
     #   notifications-utils
 git+https://github.com/alphagov/govuk-frontend-jinja.git@v0.5.8-alpha#egg=govuk-frontend-jinja==0.5.8-alpha
     # via -r requirements.in
-greenlet==1.1.0
+greenlet==1.0.0
     # via eventlet
 gunicorn==20.0.4
     # via -r requirements.in
@@ -114,19 +108,17 @@ markupsafe==1.1.1
     #   wtforms
 mistune==0.8.4
     # via notifications-utils
-monotonic==1.5
-    # via notifications-python-client
-notifications-python-client==6.2.1
+notifications-python-client==6.0.2
     # via -r requirements.in
-https://github.com/bitzesty/notifications-utils/archive/catalyst.zip
+git+https://github.com/alphagov/notifications-utils.git@43.8.3#egg=notifications-utils==43.8.3
     # via -r requirements.in
-openpyxl==3.0.7
+openpyxl==3.0.6
     # via pyexcel-xlsx
 orderedset==2.0.3
     # via notifications-utils
 packaging==20.9
     # via bleach
-phonenumbers==8.12.24
+phonenumbers==8.12.19
     # via notifications-utils
 prometheus-client==0.9.0
     # via
@@ -151,7 +143,7 @@ pyexcel-xlsx==0.6.0
     # via -r requirements.in
 pyexcel==0.6.6
     # via -r requirements.in
-pyjwt==2.1.0
+pyjwt==2.0.1
     # via notifications-python-client
 pyparsing==2.4.7
     # via packaging
@@ -181,12 +173,10 @@ requests==2.25.1
     #   notifications-utils
 rsa==4.7.2
     # via awscli
-s3transfer==0.4.2
+s3transfer==0.3.4
     # via
     #   awscli
     #   boto3
-sentry-sdk[flask]==0.20.3
-    # via -r requirements.in
 shapely==1.7.1
     # via
     #   -r requirements.in
@@ -204,11 +194,10 @@ statsd==3.3.0
     # via notifications-utils
 texttable==1.6.3
     # via pyexcel
-urllib3==1.26.5
+urllib3==1.26.3
     # via
     #   botocore
     #   requests
-    #   sentry-sdk
 webencodings==0.5.1
     # via bleach
 werkzeug==1.0.1
