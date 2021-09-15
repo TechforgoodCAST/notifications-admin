@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 
-from flask import jsonify
+from flask import render_template
 
 from app import performance_dashboard_api_client
 from app.main import main
@@ -8,10 +8,15 @@ from app.main import main
 
 @main.route("/performance")
 def performance():
-    api_args = {}
+    stats = performance_dashboard_api_client.get_performance_dashboard_stats(
+        start_date=(datetime.utcnow() - timedelta(days=90)).date(),
+        end_date=datetime.utcnow().date(),
+    )
 
-    api_args['start_date'] = (datetime.utcnow() - timedelta(days=90)).date()
-    api_args['end_date'] = datetime.utcnow().date()
+    print("THESE ARE THE STATS: ")
+    print(stats)
 
-    stats = performance_dashboard_api_client.get_performance_dashboard_stats(api_args)
-    return jsonify(stats)
+    return render_template(
+        'views/performance.html',
+        **stats
+    )
