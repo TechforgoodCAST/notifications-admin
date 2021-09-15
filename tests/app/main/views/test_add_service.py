@@ -297,7 +297,7 @@ def test_should_return_form_errors_with_duplicate_service_name_regardless_of_cas
         'app.service_api_client.create_service',
         side_effect=_create
     )
-    
+
     page = client_request.post(
         'main.add_service',
         _data={
