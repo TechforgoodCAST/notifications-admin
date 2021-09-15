@@ -510,3 +510,7 @@ def character_count(count):
     if count == 1:
         return '1 character'
     return f'{format_thousands(count)} characters'
+
+
+def format_billions(count):
+    return humanize.intword(count)
