@@ -1,6 +1,7 @@
 import sentry_sdk
-from flask import Flask
 from sentry_sdk.integrations.flask import FlaskIntegration
+from flask import Flask
+
 from app import create_app
 
 sentry_sdk.init(
