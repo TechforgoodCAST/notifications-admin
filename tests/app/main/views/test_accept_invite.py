@@ -178,7 +178,7 @@ def test_accepting_invite_removes_invite_from_session(
     assert normalize_spaces(page.select_one('h1').text) == landing_page_title
 
     with client_request.session_transaction() as session:
-        assert 'invited_user' not in session
+        assert 'invited_user_id' not in session
 
 
 def test_existing_user_of_service_get_redirected_to_signin(

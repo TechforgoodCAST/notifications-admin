@@ -39,7 +39,6 @@ def accept_invite(token):
                                service_name=service.name)
 
     if invited_user.status == 'accepted':
-        session.pop('invited_user', None)
         session.pop('invited_user_id', None)
         service = Service.from_id(invited_user.service)
         if service.has_permission('broadcast'):
