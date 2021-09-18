@@ -191,22 +191,15 @@ class UserApiClient(NotifyAdminAPIClient):
         endpoint = '/user/{}/organisations-and-services'.format(user_id)
         return self.get(endpoint)
 
+    def get_webauthn_credentials_for_user(self, user_id):
+        endpoint = f'/user/{user_id}/webauthn'
 
+        return self.get(endpoint)['data']
 
-def get_webauthn_credentials_for_user(self, user_id):
-        # TODO: remove when using real API
-        self.credentials = getattr(self, 'credentials', [])
-        return self.credentials
+    def create_webauthn_credential_for_user(self, user_id, credential):
+        endpoint = f'/user/{user_id}/webauthn'
 
-def create_webauthn_credential_for_user(self, user_id, credential):
-    self.credentials = getattr(self, 'credentials', [])
-    credential_dict = credential.serialize()
-
-    # TODO: remove when using real API
-    from datetime import datetime
-    credential_dict['created_at'] = datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%fZ")
-
-    self.credentials += [credential_dict]
+        return self.post(endpoint, data=credential.serialize())
 
 
 user_api_client = UserApiClient()
