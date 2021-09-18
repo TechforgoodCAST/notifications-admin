@@ -57,7 +57,7 @@ fix-imports:
 
 .PHONY: freeze-requirements
 freeze-requirements: ## create static requirements.txt
-	${VIRTUALENV_ROOT}/bin/pip install pip-tools
+	${VIRTUALENV_ROOT}/bin/pip install --upgrade pip-tools
 	${VIRTUALENV_ROOT}/bin/pip-compile requirements.in
 	${VIRTUALENV_ROOT}/bin/pip-compile requirements_for_test.in
 

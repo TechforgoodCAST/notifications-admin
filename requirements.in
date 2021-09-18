@@ -29,6 +29,6 @@ itsdangerous==1.1.0
 git+file:///home/kevin/Desktop/Python/catalyst-notifcations/notifications-utils#egg=notifications-utils==44.1.0
 git+https://github.com/alphagov/govuk-frontend-jinja.git@v0.5.8-alpha#egg=govuk-frontend-jinja==0.5.8-alpha
 
-# gds-metrics requires prometheseus 0.2.0, override that requirement as later versions bring significant performance gains
-prometheus-client==0.10.0
+# version 0.10.0 introduced exceptions when workers crashed due to deprecating lower case `prometheus_multiproc_dir`.
+prometheus-client>=0.9.0,!=0.10.0
 gds-metrics==0.2.4
