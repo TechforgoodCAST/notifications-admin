@@ -502,6 +502,10 @@ class InvitedUser(JSONModel):
     @property
     def email_auth(self):
         return self.auth_type == 'email_auth'
+    
+    @property
+    def webauthn_auth(self):
+        return self.auth_type == 'webauthn_auth'
 
     @classmethod
     def from_token(cls, token):
