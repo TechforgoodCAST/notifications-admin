@@ -57,10 +57,8 @@ from app.main.forms import (
     SMSPrefixForm,
 )
 from app.main.validators import SenderBlocklistValidator
-from app.utils import (
-    DELIVERED_STATUSES,
-    FAILURE_STATUSES,
-    SENDING_STATUSES,
+from app.utils import DELIVERED_STATUSES, FAILURE_STATUSES, SENDING_STATUSES
+from app.utils.user import (
     user_has_permissions,
     user_is_platform_admin,
 )

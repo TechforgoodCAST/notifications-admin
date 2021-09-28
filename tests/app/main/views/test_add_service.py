@@ -2,7 +2,7 @@ import pytest
 from flask import session, url_for
 from notifications_python_client.errors import HTTPError
 
-from app.utils import is_gov_user
+from app.utils.user import is_gov_user
 from tests import organisation_json
 from tests.conftest import normalize_spaces
 

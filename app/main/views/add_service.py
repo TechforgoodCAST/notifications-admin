@@ -6,7 +6,7 @@ from app import billing_api_client, service_api_client
 from app.formatters import email_safe
 from app.main import main
 from app.main.forms import CreateNhsServiceForm, CreateServiceForm
-from app.utils import user_is_logged_in
+from app.utils.user import user_is_logged_in
 
 
 def _create_service(service_name, service_description, organisation_type, email_from, form):
