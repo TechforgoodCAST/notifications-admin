@@ -2166,7 +2166,7 @@ def test_should_show_page_for_a_deleted_template(
 def test_route_permissions(
     route,
     mocker,
-    app_,
+    notify_admin,
     client,
     api_user_active,
     service_one,
@@ -2178,7 +2178,7 @@ def test_route_permissions(
                  return_value='2012-01-01 12:00:00')
     validate_route_permission(
         mocker,
-        app_,
+        notify_admin,
         "GET",
         200,
         url_for(
@@ -2193,7 +2193,7 @@ def test_route_permissions(
 
 def test_route_permissions_for_choose_template(
     mocker,
-    app_,
+    notify_admin,
     client,
     api_user_active,
     mock_get_template_folders,
@@ -2204,7 +2204,7 @@ def test_route_permissions_for_choose_template(
     mocker.patch('app.job_api_client.get_job')
     validate_route_permission(
         mocker,
-        app_,
+        notify_admin,
         "GET",
         200,
         url_for(
@@ -2224,7 +2224,7 @@ def test_route_permissions_for_choose_template(
 def test_route_invalid_permissions(
     route,
     mocker,
-    app_,
+    notify_admin,
     client,
     api_user_active,
     service_one,
@@ -2233,7 +2233,7 @@ def test_route_invalid_permissions(
 ):
     validate_route_permission(
         mocker,
-        app_,
+        notify_admin,
         "GET",
         403,
         url_for(

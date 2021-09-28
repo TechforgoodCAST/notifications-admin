@@ -16,7 +16,7 @@ def test_register_forbidden_for_non_platform_admins(
 
 
 def test_begin_register_returns_encoded_options(
-    app_,
+    notify_admin,
     mocker,
     platform_admin_user,
     platform_admin_client,
