@@ -1,6 +1,7 @@
 {% extends "template.njk" %}
 {% from "components/banner.html" import banner %}
 {% from "components/cookie-banner.html" import cookie_banner %}
+{% from "components/webauthn-api-check.html" import webauthn_api_check %}
 
 {% block headIcons %}
   <link rel="apple-touch-icon" sizes="57x57" href="{{ asset_url('images/apple-icon-57x57.png') }}">
@@ -45,6 +46,10 @@
 {% endblock %}
 
 {% block bodyStart %}
+  {% block webauthn_api %}
+    {{ webauthn_api_check() }}
+  {% endblock %}
+
   {% block cookie_message %}
     {{ cookie_banner() }}
   {% endblock %}
