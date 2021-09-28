@@ -78,14 +78,20 @@ beforeAll(() => {
     })
   
     test.each([
-      ['network'],
-      ['server'],
-    ])('alerts if fetching WebAuthn options fails (%s error)', (errorType, done) => {
+      ['network error'],
+      ['internal server error'],
+      ['bad request'],
+    ])('alerts if sending WebAuthn credentials fails (%s)', (errorType, done) => {
       jest.spyOn(window, 'fetch').mockImplementation((_url, options = {}) => {
-        if (errorType == 'network') {
-          return Promise.reject('error')
-        } else {
-          return Promise.resolve({ ok: false, statusText: 'error' })
+        switch (errorType) {
+          case 'network error':
+            return Promise.reject('error')
+          case 'bad request':
+            message = Promise.resolve(window.CBOR.encode('error'))
+            return Promise.resolve({ ok: false, arrayBuffer: () => message })
+          case 'internal server error':
+            message = Promise.reject('encoding error')
+            return Promise.resolve({ ok: false, arrayBuffer: () => message, statusText: 'error' })
         }
       })
   
