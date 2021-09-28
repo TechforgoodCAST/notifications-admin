@@ -3988,7 +3988,7 @@ def create_active_user_manage_template_permissions(with_unique_id=False):
     }
 
 
-def create_platform_admin_user(with_unique_id=False):
+def create_platform_admin_user(with_unique_id=False, auth_type='sms_auth', permissions=None):
     return {
         'id': str(uuid4()) if with_unique_id else sample_uuid(),
         'name': 'Platform admin user',
@@ -3997,16 +3997,9 @@ def create_platform_admin_user(with_unique_id=False):
         'mobile_number': '07700 900762',
         'state': 'active',
         'failed_login_count': 0,
-        'permissions': {SERVICE_ONE_ID: ['send_texts',
-                                         'send_emails',
-                                         'send_letters',
-                                         'manage_users',
-                                         'manage_templates',
-                                         'manage_settings',
-                                         'manage_api_keys',
-                                         'view_activity']},
+        'permissions': permissions or {},
         'platform_admin': True,
-        'auth_type': 'sms_auth',
+        'auth_type': auth_type,
         'password_changed_at': str(datetime.utcnow()),
         'services': [],
         'organisations': [],
