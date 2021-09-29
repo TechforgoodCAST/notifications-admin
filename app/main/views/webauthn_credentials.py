@@ -14,12 +14,13 @@ from app.utils.login import (
     log_in_user,
     redirect_to_sign_in,
 )
-from app.utils.user import user_is_platform_admin
 
 
 @main.route('/webauthn/register')
-@user_is_platform_admin
 def webauthn_begin_register():
+    if not current_user.can_use_webauthn:
+        abort(403)
+
     server = current_app.webauthn_server
 
     registration_data, state = server.register_begin(
@@ -28,7 +29,7 @@ def webauthn_begin_register():
             "name": current_user.email_address,
             "displayName": current_user.name,
         },
-        credentials=current_user.webauthn_credentials,
+        credentials=current_user.webauthn_credentials.as_cbor,
         user_verification="discouraged",  # don't ask for PIN
         authenticator_attachment="cross-platform",
     )
@@ -38,7 +39,6 @@ def webauthn_begin_register():
 
 
 @main.route('/webauthn/register', methods=['POST'])
-@user_is_platform_admin
 def webauthn_complete_register():
     if 'webauthn_registration_state' not in session:
         return cbor.encode("No registration in progress"), 400
@@ -81,11 +81,8 @@ def webauthn_begin_authentication():
     if not user_to_login.webauthn_auth:
         abort(403)
 
-    if not user_to_login.platform_admin:
-        abort(403)
-
     authentication_data, state = current_app.webauthn_server.authenticate_begin(
-        credentials=user_to_login.webauthn_credentials,
+        credentials=user_to_login.webauthn_credentials.as_cbor,
         user_verification="discouraged",  # don't ask for PIN
     )
     session["webauthn_authentication_state"] = state
@@ -104,12 +101,6 @@ def webauthn_complete_authentication():
     """
     user_id = session['user_details']['id']
     user_to_login = User.from_id(user_id)
-
-    if not user_to_login.webauthn_auth:
-        abort(403)
-
-    if not user_to_login.platform_admin:
-        abort(403)
 
     try:
         _verify_webauthn_authentication(user_to_login)
@@ -144,7 +135,7 @@ def _verify_webauthn_authentication(user):
     try:
         current_app.webauthn_server.authenticate_complete(
             state=state,
-            credentials=user.webauthn_credentials,
+            credentials=user.webauthn_credentials.as_cbor,
             credential_id=request_data['credentialId'],
             client_data=ClientData(request_data['clientDataJSON']),
             auth_data=AuthenticatorData(request_data['authenticatorData']),
