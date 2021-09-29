@@ -742,7 +742,7 @@ def test_cant_edit_non_member_user_permissions(
     assert mock_set_user_permissions.called is False
 
 
-@pytest.mark.parametrize('auth_type', ['email_auth', 'sms_auth'])
+@pytest.mark.parametrize('current_auth_type', ['webauthn_auth', 'email_auth'])
 def test_edit_user_permissions_including_authentication_with_email_auth_service(
     client_request,
     service_one,
@@ -751,9 +751,10 @@ def test_edit_user_permissions_including_authentication_with_email_auth_service(
     mock_get_invites_for_service,
     mock_set_user_permissions,
     mock_update_user_attribute,
-    auth_type,
-    mock_get_template_folders
+    mock_get_template_folders,
+    current_auth_type,
 ):
+    active_user_with_permissions['auth_type'] = current_auth_type
     service_one['permissions'].append('email_auth')
 
     client_request.post(
@@ -768,7 +769,7 @@ def test_edit_user_permissions_including_authentication_with_email_auth_service(
                 'manage_service',
                 'manage_api_keys',
             ],
-            'login_authentication': auth_type,
+            'login_authentication': 'sms_auth',
         },
         _expected_status=302,
         _expected_redirect=url_for(
@@ -791,8 +792,48 @@ def test_edit_user_permissions_including_authentication_with_email_auth_service(
     )
     mock_update_user_attribute.assert_called_with(
         str(active_user_with_permissions['id']),
-        auth_type=auth_type
+        auth_type='sms_auth'
     )
+
+
+@pytest.mark.parametrize('current_auth_type', ['webauthn_auth', 'email_auth'])
+def test_edit_user_permissions_preserves_auth_type_for_platform_admin(
+    client_request,
+    service_one,
+    platform_admin_user,
+    mock_get_users_by_service,
+    mock_get_invites_for_service,
+    mock_set_user_permissions,
+    mock_update_user_attribute,
+    mock_get_template_folders,
+    current_auth_type,
+):
+    platform_admin_user['auth_type'] = current_auth_type
+    service_one['permissions'].append('email_auth')
+
+    # we're logging in as this user being edited; normally a user can't edit themselves, but since
+    # the same mock is used to (a) check access and (b) find the user to edit, this is just easier
+    client_request.login(platform_admin_user)
+
+    client_request.post(
+        'main.edit_user_permissions',
+        service_id=SERVICE_ONE_ID,
+        user_id=platform_admin_user['id'],
+        _data={
+            'email_address': platform_admin_user['email_address'],
+            'permissions_field': [],
+            'login_authentication': 'sms_auth',
+        },
+        _expected_status=302,
+    )
+
+    mock_set_user_permissions.assert_called_with(
+        str(platform_admin_user['id']),
+        SERVICE_ONE_ID,
+        permissions=set(),
+        folder_permissions=[],
+    )
+    mock_update_user_attribute.assert_not_called()
 
 
 def test_should_show_page_for_inviting_user(
