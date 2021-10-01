@@ -45,7 +45,6 @@ def test_existing_user_accept_invite_calls_api_and_redirects_to_dashboard(
 ):
     expected_service = service_one['id']
     expected_permissions = {'view_activity', 'send_messages', 'manage_service', 'manage_api_keys'}
-    mock_audit_event = mocker.patch('app.event_handlers.create_add_user_to_service_event')
 
     response = client.get(url_for('main.accept_invite', token='thisisnotarealtoken'))
 
@@ -61,11 +60,6 @@ def test_existing_user_accept_invite_calls_api_and_redirects_to_dashboard(
 
     assert response.status_code == 302
     assert response.location == url_for('main.service_dashboard', service_id=expected_service, _external=True)
-    mock_audit_event.assert_called_once_with(
-        invited_by_id=service_one['users'][0],
-        service_id=SERVICE_ONE_ID,
-        user_id=api_user_active['id'],
-    )
 
 
 def test_existing_user_with_no_permissions_or_folder_permissions_accept_invite(
@@ -231,8 +225,6 @@ def test_accept_invite_redirects_if_api_raises_an_error_that_they_are_already_pa
     mock_no_users_for_service,
     mock_get_user,
 ):
-    mock_audit_event = mocker.patch('app.event_handlers.create_add_user_to_service_event')
-
     mocker.patch('app.user_api_client.add_user_to_service', side_effect=HTTPError(
         response=Mock(
             status_code=400,
@@ -246,7 +238,6 @@ def test_accept_invite_redirects_if_api_raises_an_error_that_they_are_already_pa
 
     response = client.get(url_for('main.accept_invite', token='thisisnotarealtoken'), follow_redirects=False)
     assert response.location == url_for('main.service_dashboard', service_id=SERVICE_ONE_ID, _external=True)
-    assert not mock_audit_event.called
 
 
 def test_existing_signed_out_user_accept_invite_redirects_to_sign_in(
