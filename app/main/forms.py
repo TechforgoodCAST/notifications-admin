@@ -44,7 +44,7 @@ from app.main.validators import (
     CommonlyUsedPassword,
     CsvFileValidator,
     DoesNotStartWithDoubleZero,
-    LettersNumbersFullStopsAndUnderscoresOnly,
+    LettersNumbersSingleQuotesFullStopsAndUnderscoresOnly,
     MustContainAlphanumericCharacters,
     NoCommasInPlaceHolders,
     NoEmbeddedImagesInSVG,
@@ -1648,7 +1648,7 @@ class ServiceSmsSenderForm(StripWhitespaceForm):
             DataRequired(message="Cannot be empty"),
             Length(max=11, message="Enter 11 characters or fewer"),
             Length(min=3, message="Enter 3 characters or more"),
-            LettersNumbersFullStopsAndUnderscoresOnly(),
+            LettersNumbersSingleQuotesFullStopsAndUnderscoresOnly(),
             DoesNotStartWithDoubleZero(),
             SenderBlocklistValidator(values=[])
         ]
