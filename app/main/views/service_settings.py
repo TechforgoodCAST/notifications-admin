@@ -293,7 +293,7 @@ def service_set_broadcast_permission(service_id):
 @main.route("/services/<uuid:service_id>/service-settings/archive", methods=['GET', 'POST'])
 @user_has_permissions('manage_service')
 def archive_service(service_id):
-    if not current_service.active and (
+    if not current_service.active or not (
         current_service.trial_mode or current_user.platform_admin
     ):
         abort(403)
@@ -319,7 +319,7 @@ def archive_service(service_id):
 
 
 @main.route("/services/<uuid:service_id>/service-settings/suspend", methods=["GET", "POST"])
-@user_has_permissions('manage_service')
+@user_is_platform_admin
 def suspend_service(service_id):
     if request.method == 'POST':
         service_api_client.suspend_service(service_id)
@@ -332,7 +332,7 @@ def suspend_service(service_id):
 
 
 @main.route("/services/<uuid:service_id>/service-settings/resume", methods=["GET", "POST"])
-@user_has_permissions('manage_service')
+@user_is_platform_admin
 def resume_service(service_id):
     if request.method == 'POST':
         service_api_client.resume_service(service_id)
