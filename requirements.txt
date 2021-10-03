@@ -118,9 +118,7 @@ mistune==0.8.4
     # via notifications-utils
 notifications-python-client==6.2.1
     # via -r requirements.in
-# git+https://github.com/alphagov/notifications-utils.git@43.8.3#egg=notifications-utils==43.8.3
-# using my local version until I publicly push everything
-git+file:///home/kevin/Desktop/Python/catalyst-notifcations/notifications-utils#egg=notifications-utils==44.4.2
+https://github.com/bitzesty/notifications-utils/archive/catalyst.zip
     # via -r requirements.in
 openpyxl==3.0.7
     # via pyexcel-xlsx
