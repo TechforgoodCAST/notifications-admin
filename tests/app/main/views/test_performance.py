@@ -93,7 +93,7 @@ def _get_example_performance_data():
           "service_id": uuid.uuid4(),
           "service_name": "Example service 3"
         },
-         {
+        {
           # On production there should be no live services without an
           # organisation, but this isn’t always true in people’s local
           # environments
@@ -140,7 +140,7 @@ def test_should_render_performance_page(
         '22 February 2021 1 2 3 '
         '21 February 2021 1,234,567 123,456 123 '
 
-        
+
         'Only showing the last 7 days '
         ''
         'Messages sent within 10 seconds '

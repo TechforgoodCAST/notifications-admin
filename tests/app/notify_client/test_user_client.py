@@ -259,7 +259,7 @@ def test_get_webauthn_credentials_for_user(mocker, webauthn_credential, fake_uui
 
 def test_create_webauthn_credential_for_user(mocker, webauthn_credential, fake_uuid):
     credential = WebAuthnCredential(webauthn_credential)
-    
+
     mock_post = mocker.patch('app.notify_client.user_api_client.UserApiClient.post')
     expected_url = f'/user/{fake_uuid}/webauthn'
 

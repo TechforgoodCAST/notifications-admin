@@ -63,10 +63,7 @@ from app.main.forms import (
 )
 from app.main.validators import SenderBlocklistValidator
 from app.utils import DELIVERED_STATUSES, FAILURE_STATUSES, SENDING_STATUSES
-from app.utils.user import (
-    user_has_permissions,
-    user_is_platform_admin,
-)
+from app.utils.user import user_has_permissions, user_is_platform_admin
 
 PLATFORM_ADMIN_SERVICE_PERMISSIONS = OrderedDict([
     ('inbound_sms', {'title': 'Receive inbound SMS', 'requires': 'sms', 'endpoint': '.service_set_inbound_number'}),

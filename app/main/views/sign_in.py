@@ -41,7 +41,7 @@ def sign_in():
             session['user_details'] = {"email": user.email_address, "id": user.id}
 
             if user.state == 'pending':
-                    return redirect(url_for('main.resend_email_verification', next=redirect_url))
+                return redirect(url_for('main.resend_email_verification', next=redirect_url))
 
             if user.is_active:
                 if session.get('invited_user_id'):

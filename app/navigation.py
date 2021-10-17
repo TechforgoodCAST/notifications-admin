@@ -272,6 +272,7 @@ class MainNavigation(Navigation):
         },
     }
 
+
 class CaseworkNavigation(Navigation):
 
     mapping = {
@@ -307,6 +308,7 @@ class CaseworkNavigation(Navigation):
             'uploads',
         },
     }
+
 
 class OrgNavigation(Navigation):
 

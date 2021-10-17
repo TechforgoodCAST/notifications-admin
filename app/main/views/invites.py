@@ -107,7 +107,6 @@ def accept_org_invite(token):
         session.pop('invited_org_user_id', None)
         return redirect(url_for('main.organisation_dashboard', org_id=invited_org_user.organisation))
 
-
     existing_user = User.from_email_address_or_none(invited_org_user.email_address)
     organisation_users = OrganisationUsers(invited_org_user.organisation)
 

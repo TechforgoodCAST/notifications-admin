@@ -286,7 +286,6 @@ def user_profile_delete_security_key(key_id):
     if not current_user.can_use_webauthn:
         abort(403)
 
-        
     try:
         user_api_client.delete_webauthn_credential_for_user(
             user_id=current_user.id,

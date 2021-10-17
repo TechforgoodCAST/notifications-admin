@@ -626,4 +626,5 @@ class ServiceAPIClient(NotifyAdminAPIClient):
         count = redis_client.get(daily_limit_cache_key(service_id)) or 0
         return int(count)
 
+
 service_api_client = ServiceAPIClient()

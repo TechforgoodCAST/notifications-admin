@@ -67,7 +67,7 @@ def _send_event(event_type, **kwargs):
 
     if expected_keys != actual_keys:
         raise ValueError(f'Expected {expected_keys}, but got {actual_keys}')
-        
+
     event_data = _construct_event_data(request)
     event_data.update(kwargs)
 

@@ -118,7 +118,6 @@ def test_invited_user_from_session_uses_id(client, mocker, mock_get_invited_user
     mock_get_invited_user_by_id.assert_called_once_with(USER_ONE_ID)
 
 
-
 def test_invited_user_from_session_returns_none_if_nothing_present(client, mocker):
     mocker.patch.dict('app.models.user.session', values={}, clear=True)
     assert InvitedUser.from_session() is None

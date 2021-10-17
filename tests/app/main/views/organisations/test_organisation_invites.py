@@ -266,7 +266,6 @@ def test_registration_from_org_invite_has_different_email_or_organisation(
     diff_data,
     mock_get_invited_org_user_by_id,
 ):
-    invited_org_user = InvitedOrgUser(sample_org_invite)
     with client.session_transaction() as session:
         session['invited_org_user_id'] = sample_org_invite['id']
 
@@ -277,7 +276,6 @@ def test_registration_from_org_invite_has_different_email_or_organisation(
         'email_address': sample_org_invite['email_address'],
         'organisation': sample_org_invite['organisation']
     }
-
     for field in diff_data:
         data[field] = 'different'
 

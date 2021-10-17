@@ -50,7 +50,7 @@ def test_create_add_user_to_service_event_calls_events_api(client, mock_events):
         "service_id": str(uuid.uuid4()),
         "ui_permissions": {'manage_templates'},
     }
-    
+
     create_add_user_to_service_event(**kwargs)
     mock_events.assert_called_with('add_user_to_service', event_dict(**kwargs))
 
@@ -61,7 +61,7 @@ def test_create_remove_user_from_service_event_calls_events_api(client, mock_eve
         "removed_by_id": str(uuid.uuid4()),
         "service_id": str(uuid.uuid4())
     }
-    
+
     create_remove_user_from_service_event(**kwargs)
     mock_events.assert_called_with('remove_user_from_service', event_dict(**kwargs))
 
@@ -73,7 +73,7 @@ def test_create_mobile_number_change_event_calls_events_api(client, mock_events)
         "original_mobile_number": '07700900000',
         "new_mobile_number": '07700900999'
     }
-    
+
     create_mobile_number_change_event(**kwargs)
     mock_events.assert_called_with('update_user_mobile_number', event_dict(**kwargs))
 

@@ -470,7 +470,7 @@ def test_cant_manage_security_keys_unless_can_use_webauthn(
 ):
     platform_admin_user['can_use_webauthn'] = False
     client_request.login(platform_admin_user)
-    
+
     if method == "get":
         client_request.get(
             endpoint,
