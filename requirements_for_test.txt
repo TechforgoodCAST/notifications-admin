@@ -12,3 +12,4 @@ flake8-print==4.0.0
 requests-mock==1.9.3
 # used for creating manifest file locally
 jinja2-cli[yaml]==0.7.0
+sentry-sdk[flask]==0.20.3

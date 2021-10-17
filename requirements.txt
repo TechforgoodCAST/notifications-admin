@@ -189,6 +189,8 @@ s3transfer==0.4.2
     # via
     #   awscli
     #   boto3
+sentry-sdk[flask]==0.20.3
+    # via -r requirements.in
 shapely==1.7.1
     # via
     #   -r requirements.in
