@@ -27,12 +27,18 @@ from app import (
     service_api_client,
     user_api_client,
 )
+from app.event_handlers import (
+    create_archive_service_event,
+    create_resume_service_event,
+    create_suspend_service_event,
+)
 from app.formatters import email_safe
 from app.main import main
 from app.main.forms import (
+    BillingDetailsForm,
     BrandingOptions,
     ConfirmPasswordForm,
-    EditServiceNotesForm,
+    EditNotesForm,
     EstimateUsageForm,
     FreeSMSAllowance,
     LinkOrganisationsForm,
@@ -41,7 +47,6 @@ from app.main.forms import (
     RateLimit,
     RenameServiceForm,
     SearchByNameForm,
-    ServiceBillingDetailsForm,
     ServiceContactDetailsForm,
     ServiceDataRetentionEditForm,
     ServiceDataRetentionForm,
@@ -57,13 +62,8 @@ from app.main.forms import (
     SMSPrefixForm,
 )
 from app.main.validators import SenderBlocklistValidator
-from app.utils import (
-    DELIVERED_STATUSES,
-    FAILURE_STATUSES,
-    SENDING_STATUSES,
-    user_has_permissions,
-    user_is_platform_admin,
-)
+from app.utils import DELIVERED_STATUSES, FAILURE_STATUSES, SENDING_STATUSES
+from app.utils.user import user_has_permissions, user_is_platform_admin
 
 PLATFORM_ADMIN_SERVICE_PERMISSIONS = OrderedDict([
     ('inbound_sms', {'title': 'Receive inbound SMS', 'requires': 'sms', 'endpoint': '.service_set_inbound_number'}),
@@ -290,7 +290,7 @@ def service_set_broadcast_permission(service_id):
 @main.route("/services/<uuid:service_id>/service-settings/archive", methods=['GET', 'POST'])
 @user_has_permissions('manage_service')
 def archive_service(service_id):
-    if not current_service.active and (
+    if not current_service.active or not (
         current_service.trial_mode or current_user.platform_admin
     ):
         abort(403)
@@ -300,6 +300,8 @@ def archive_service(service_id):
         cached_service_user_ids = [user.id for user in current_service.active_users]
 
         service_api_client.archive_service(service_id, cached_service_user_ids)
+        create_archive_service_event(service_id=service_id, archived_by_id=current_user.id)
+
         flash(
             '‘{}’ was deleted'.format(current_service.name),
             'default_with_tick',
@@ -314,10 +316,11 @@ def archive_service(service_id):
 
 
 @main.route("/services/<uuid:service_id>/service-settings/suspend", methods=["GET", "POST"])
-@user_has_permissions('manage_service')
+@user_is_platform_admin
 def suspend_service(service_id):
     if request.method == 'POST':
         service_api_client.suspend_service(service_id)
+        create_suspend_service_event(service_id=service_id, suspended_by_id=current_user.id)
         return redirect(url_for('.service_settings', service_id=service_id))
     else:
         flash("This will suspend the service and revoke all api keys. Are you sure you want to suspend this service?",
@@ -326,10 +329,11 @@ def suspend_service(service_id):
 
 
 @main.route("/services/<uuid:service_id>/service-settings/resume", methods=["GET", "POST"])
-@user_has_permissions('manage_service')
+@user_is_platform_admin
 def resume_service(service_id):
     if request.method == 'POST':
         service_api_client.resume_service(service_id)
+        create_resume_service_event(service_id=service_id, resumed_by_id=current_user.id)
         return redirect(url_for('.service_settings', service_id=service_id))
     else:
         flash("This will resume the service. New api key are required for this service to use the API.", 'resume')
@@ -383,22 +387,30 @@ def service_add_email_reply_to(service_id):
     first_email_address = current_service.count_email_reply_to_addresses == 0
     is_default = first_email_address if first_email_address else form.is_default.data
     if form.validate_on_submit():
-        try:
-            notification_id = service_api_client.verify_reply_to_email_address(
-                service_id, form.email_address.data
-            )["data"]["id"]
-        except HTTPError as e:
-            if e.status_code == 409:
-                flash(e.message, 'error')
-                return redirect(url_for('.service_email_reply_to', service_id=service_id))
-            else:
-                raise e
-        return redirect(url_for(
-            '.service_verify_reply_to_address',
-            service_id=service_id,
-            notification_id=notification_id,
-            is_default=is_default
-        ))
+        if current_user.platform_admin:
+            service_api_client.add_reply_to_email_address(
+                service_id,
+                email_address=form.email_address.data,
+                is_default=is_default
+            )
+            return redirect(url_for('.service_email_reply_to', service_id=service_id))
+        else:
+            try:
+                notification_id = service_api_client.verify_reply_to_email_address(
+                    service_id, form.email_address.data
+                )["data"]["id"]
+            except HTTPError as e:
+                if e.status_code == 409:
+                    flash(e.message, 'error')
+                    return redirect(url_for('.service_email_reply_to', service_id=service_id))
+                else:
+                    raise e
+            return redirect(url_for(
+                '.service_verify_reply_to_address',
+                service_id=service_id,
+                notification_id=notification_id,
+                is_default=is_default
+            ))
 
     return render_template(
         'views/service-settings/email-reply-to/add.html',
@@ -502,7 +514,7 @@ def service_edit_email_reply_to(service_id, reply_to_email_id):
         form.email_address.data = reply_to_email_address['email_address']
         form.is_default.data = reply_to_email_address['is_default']
     if form.validate_on_submit():
-        if form.email_address.data == reply_to_email_address["email_address"]:
+        if form.email_address.data == reply_to_email_address["email_address"] or current_user.platform_admin:
             service_api_client.update_reply_to_email_address(
                 current_service.id,
                 reply_to_email_id=reply_to_email_id,
@@ -1143,7 +1155,7 @@ def edit_data_retention(service_id, data_retention_id):
 @main.route("/services/<uuid:service_id>/notes", methods=['GET', 'POST'])
 @user_is_platform_admin
 def edit_service_notes(service_id):
-    form = EditServiceNotesForm(notes=current_service.notes)
+    form = EditNotesForm(notes=current_service.notes)
 
     if form.validate_on_submit():
 
@@ -1164,7 +1176,7 @@ def edit_service_notes(service_id):
 @main.route("/services/<uuid:service_id>/edit-billing-details", methods=['GET', 'POST'])
 @user_is_platform_admin
 def edit_service_billing_details(service_id):
-    form = ServiceBillingDetailsForm(
+    form = BillingDetailsForm(
         billing_contact_email_addresses=current_service.billing_contact_email_addresses,
         billing_contact_names=current_service.billing_contact_names,
         billing_reference=current_service.billing_reference,

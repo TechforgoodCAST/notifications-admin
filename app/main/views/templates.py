@@ -29,7 +29,7 @@ from app.main.forms import (
     EmailTemplateForm,
     LetterTemplateForm,
     LetterTemplatePostageForm,
-    SearchByNameForm,
+    SearchTemplatesForm,
     SetTemplateSenderForm,
     SMSTemplateForm,
     TemplateAndFoldersSelectionForm,
@@ -39,13 +39,9 @@ from app.main.views.send import get_sender_details
 from app.models.service import Service
 from app.models.template_list import TemplateList, TemplateLists
 from app.template_previews import TemplatePreview, get_page_count_for_letter
-from app.utils import (
-    NOTIFICATION_TYPES,
-    get_template,
-    should_skip_template_page,
-    user_has_permissions,
-    user_is_platform_admin,
-)
+from app.utils import NOTIFICATION_TYPES, should_skip_template_page
+from app.utils.templates import get_template
+from app.utils.user import user_has_permissions, user_is_platform_admin
 
 form_objects = {
     'email': EmailTemplateForm,
@@ -62,8 +58,7 @@ def view_template(service_id, template_id):
     template_folder = current_service.get_template_folder(template['folder'])
 
     user_has_template_permission = current_user.has_template_folder_permission(template_folder)
-
-    if should_skip_template_page(template['template_type']):
+    if should_skip_template_page(template):
         return redirect(url_for(
             '.set_sender', service_id=service_id, template_id=template_id
         ))
@@ -159,7 +154,7 @@ def choose_template(service_id, template_type='all', template_folder_id=None):
         ),
         template_nav_items=get_template_nav_items(template_folder_id),
         template_type=template_type,
-        search_form=SearchByNameForm(),
+        search_form=SearchTemplatesForm(current_service.api_keys),
         templates_and_folders_form=templates_and_folders_form,
         move_to_children=templates_and_folders_form.move_to.children(),
         user_has_template_folder_permission=user_has_template_folder_permission,
@@ -352,14 +347,14 @@ def choose_template_to_copy(
             ),
             template_folder_path=service.get_template_folder_path(from_folder),
             from_service=service,
-            search_form=SearchByNameForm(),
+            search_form=SearchTemplatesForm(current_service.api_keys),
         )
 
     else:
         return render_template(
             'views/templates/copy.html',
             services_templates_and_folders=TemplateLists(current_user),
-            search_form=SearchByNameForm(),
+            search_form=SearchTemplatesForm(current_service.api_keys),
         )
 
 

@@ -5,7 +5,7 @@ import pytest
 from flask import url_for
 
 import app
-from app.utils import is_gov_user
+from app.utils.user import is_gov_user
 from tests.conftest import (
     ORGANISATION_ID,
     ORGANISATION_TWO_ID,
@@ -453,8 +453,11 @@ def test_invite_user_allows_to_choose_auth(
     service_one['permissions'].append('email_auth')
     page = client_request.get('main.invite_user', service_id=SERVICE_ONE_ID)
 
-    sms_auth_radio_button = page.select_one('input[value="sms_auth"]')
-    assert sms_auth_radio_button.has_attr("disabled") is False
+    radio_buttons = page.select("input[name=login_authentication]")
+    values = {button["value"] for button in radio_buttons}
+
+    assert values == {'sms_auth', 'email_auth'}
+    assert not any(button.has_attr("disabled") for button in radio_buttons)
 
 
 def test_invite_user_has_correct_email_field(
@@ -742,7 +745,6 @@ def test_cant_edit_non_member_user_permissions(
     assert mock_set_user_permissions.called is False
 
 
-@pytest.mark.parametrize('auth_type', ['email_auth', 'sms_auth'])
 def test_edit_user_permissions_including_authentication_with_email_auth_service(
     client_request,
     service_one,
@@ -751,9 +753,9 @@ def test_edit_user_permissions_including_authentication_with_email_auth_service(
     mock_get_invites_for_service,
     mock_set_user_permissions,
     mock_update_user_attribute,
-    auth_type,
-    mock_get_template_folders
+    mock_get_template_folders,
 ):
+    active_user_with_permissions['auth_type'] = 'email_auth'
     service_one['permissions'].append('email_auth')
 
     client_request.post(
@@ -768,7 +770,7 @@ def test_edit_user_permissions_including_authentication_with_email_auth_service(
                 'manage_service',
                 'manage_api_keys',
             ],
-            'login_authentication': auth_type,
+            'login_authentication': 'sms_auth',
         },
         _expected_status=302,
         _expected_redirect=url_for(
@@ -791,8 +793,86 @@ def test_edit_user_permissions_including_authentication_with_email_auth_service(
     )
     mock_update_user_attribute.assert_called_with(
         str(active_user_with_permissions['id']),
-        auth_type=auth_type
+        auth_type='sms_auth'
     )
+
+
+def test_edit_user_permissions_shows_authentication_for_email_auth_service(
+    client_request,
+    service_one,
+    mock_get_users_by_service,
+    mock_get_template_folders,
+    active_user_with_permissions,
+):
+    service_one['permissions'].append('email_auth')
+
+    page = client_request.get(
+        'main.edit_user_permissions',
+        service_id=SERVICE_ONE_ID,
+        user_id=active_user_with_permissions['id'],
+    )
+
+    radio_buttons = page.select("input[name=login_authentication]")
+    values = {button["value"] for button in radio_buttons}
+
+    assert values == {'sms_auth', 'email_auth'}
+    assert not any(button.has_attr("disabled") for button in radio_buttons)
+
+
+def test_edit_user_permissions_hides_authentication_for_webauthn_user(
+    client_request,
+    service_one,
+    mock_get_users_by_service,
+    mock_get_template_folders,
+    active_user_with_permissions,
+):
+    active_user_with_permissions['auth_type'] = 'webauthn_auth'
+    service_one['permissions'].append('email_auth')
+
+    page = client_request.get(
+        'main.edit_user_permissions',
+        service_id=SERVICE_ONE_ID,
+        user_id=active_user_with_permissions['id'],
+    )
+
+    assert 'This user will login with a security key' in str(page)
+    assert page.select_one('#login_authentication') is None
+
+
+@pytest.mark.parametrize('new_auth_type', ['sms_auth', 'email_auth'])
+def test_edit_user_permissions_preserves_auth_type_for_webauthn_user(
+    client_request,
+    service_one,
+    active_user_with_permissions,
+    mock_get_users_by_service,
+    mock_get_invites_for_service,
+    mock_set_user_permissions,
+    mock_update_user_attribute,
+    mock_get_template_folders,
+    new_auth_type,
+):
+    active_user_with_permissions['auth_type'] = 'webauthn_auth'
+    service_one['permissions'].append('email_auth')
+
+    client_request.post(
+        'main.edit_user_permissions',
+        service_id=SERVICE_ONE_ID,
+        user_id=active_user_with_permissions['id'],
+        _data={
+            'email_address': active_user_with_permissions['email_address'],
+            'permissions_field': [],
+            'login_authentication': new_auth_type,
+        },
+        _expected_status=302,
+    )
+
+    mock_set_user_permissions.assert_called_with(
+        str(active_user_with_permissions['id']),
+        SERVICE_ONE_ID,
+        permissions=set(),
+        folder_permissions=[],
+    )
+    mock_update_user_attribute.assert_not_called()
 
 
 def test_should_show_page_for_inviting_user(
@@ -1004,7 +1084,7 @@ def test_invite_user(
     mock_get_template_folders,
     mock_get_organisations,
 ):
-    sample_invite['email_address'] = 'test@example.gov.uk'
+    sample_invite['email_address'] = email_address
 
     assert is_gov_user(email_address) == gov_user
     mocker.patch('app.models.user.InvitedUsers.client_method', return_value=[sample_invite])
@@ -1027,7 +1107,7 @@ def test_invite_user(
     )
     assert page.h1.string.strip() == 'Team members'
     flash_banner = page.find('div', class_='banner-default-with-tick').string.strip()
-    assert flash_banner == 'Invite sent to test@example.gov.uk'
+    assert flash_banner == f'Invite sent to {email_address}'
 
     expected_permissions = {'manage_api_keys', 'manage_service', 'manage_templates', 'send_messages', 'view_activity'}
 
@@ -1242,7 +1322,7 @@ def test_cancel_invited_user_cancels_user_invitations(
     mocker,
 ):
     mock_cancel = mocker.patch('app.invite_api_client.cancel_invited_user')
-    mocker.patch('app.invite_api_client.get_invited_user', return_value=sample_invite)
+    mocker.patch('app.invite_api_client.get_invited_user_for_org', return_value=sample_invite)
 
     page = client_request.get(
         'main.cancel_invited_user',
@@ -1361,6 +1441,70 @@ def test_user_cant_invite_themselves(
     form_error = page.find('span', class_='govuk-error-message').text.strip()
     assert form_error == "Error: You cannot send an invitation to yourself"
     assert not mock_create_invite.called
+
+
+@pytest.mark.parametrize('email_address', (
+    'test@user.gov.uk',
+    'TEST@user.gov.uk',
+    'test@USER.gov.uk',
+    'test+test@user.gov.uk',
+    'te.st@user.gov.uk',
+    pytest.param('test2@user.gov.uk', marks=pytest.mark.xfail),
+    pytest.param('test@other.gov.uk', marks=pytest.mark.xfail),
+))
+def test_broadcast_user_cant_invite_themselves_or_their_aliases(
+    client_request,
+    service_one,
+    mocker,
+    active_user_with_permissions,
+    mock_create_invite,
+    mock_get_template_folders,
+    email_address,
+):
+    service_one['permissions'] += ['broadcast']
+    page = client_request.post(
+        'main.invite_user',
+        service_id=SERVICE_ONE_ID,
+        _data={
+            'email_address': email_address,
+            'permissions_field': []
+        },
+        _expected_status=200,
+    )
+    assert normalize_spaces(page.select_one('span.govuk-error-message').text) == (
+        "Error: You cannot send an invitation to yourself"
+    )
+    assert mock_create_invite.called is False
+
+
+@pytest.mark.parametrize('extra_service_permissions', (
+    pytest.param([], marks=pytest.mark.xfail),
+    ['broadcast'],
+))
+def test_platform_admin_cant_invite_themselves_to_broadcast_services(
+    client_request,
+    service_one,
+    mocker,
+    platform_admin_user,
+    mock_create_invite,
+    mock_get_template_folders,
+    extra_service_permissions,
+):
+    service_one['permissions'] += extra_service_permissions
+    client_request.login(platform_admin_user)
+    page = client_request.post(
+        'main.invite_user',
+        service_id=SERVICE_ONE_ID,
+        _data={
+            'email_address': platform_admin_user['email_address'],
+            'permissions_field': []
+        },
+        _expected_status=200,
+    )
+    assert normalize_spaces(page.select_one('span.govuk-error-message').text) == (
+        "Error: You cannot send an invitation to yourself"
+    )
+    assert mock_create_invite.called is False
 
 
 def test_no_permission_manage_users_page(
@@ -1648,7 +1792,7 @@ def test_edit_user_email_cannot_change_a_gov_email_address_to_a_non_gov_email_ad
     )
     assert 'Enter a public sector email address' in page.select_one('.govuk-error-message').text
     with client_request.session_transaction() as session:
-        assert 'team_member_email_change-'.format(active_user_with_permissions['id']) not in session
+        assert 'team_member_email_change-{}'.format(active_user_with_permissions['id']) not in session
 
 
 def test_confirm_edit_user_email_page(
@@ -1747,10 +1891,10 @@ def test_confirm_edit_user_email_changes_user_email(
         updated_by=active_user_with_permissions['id']
     )
     mock_event_handler.assert_called_once_with(
-        api_user_active['id'],
-        active_user_with_permissions['id'],
-        api_user_active['email_address'],
-        new_email)
+        user_id=api_user_active['id'],
+        updated_by_id=active_user_with_permissions['id'],
+        original_email_address=api_user_active['email_address'],
+        new_email_address=new_email)
 
 
 def test_confirm_edit_user_email_doesnt_change_user_email_for_non_team_member(
@@ -1960,10 +2104,10 @@ def test_confirm_edit_user_mobile_number_changes_user_mobile_number(
         updated_by=active_user_with_permissions['id']
     )
     mock_event_handler.assert_called_once_with(
-        api_user_active['id'],
-        active_user_with_permissions['id'],
-        api_user_active['mobile_number'],
-        new_number)
+        user_id=api_user_active['id'],
+        updated_by_id=active_user_with_permissions['id'],
+        original_mobile_number=api_user_active['mobile_number'],
+        new_mobile_number=new_number)
 
 
 def test_confirm_edit_user_mobile_number_doesnt_change_user_mobile_for_non_team_member(

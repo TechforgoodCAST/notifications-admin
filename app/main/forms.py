@@ -44,7 +44,7 @@ from app.main.validators import (
     CommonlyUsedPassword,
     CsvFileValidator,
     DoesNotStartWithDoubleZero,
-    LettersNumbersFullStopsAndUnderscoresOnly,
+    LettersNumbersSingleQuotesFullStopsAndUnderscoresOnly,
     MustContainAlphanumericCharacters,
     NoCommasInPlaceHolders,
     NoEmbeddedImagesInSVG,
@@ -56,12 +56,13 @@ from app.main.validators import (
 )
 from app.models.feedback import PROBLEM_TICKET_TYPE, QUESTION_TICKET_TYPE
 from app.models.organisation import Organisation
-from app.models.roles_and_permissions import (
-    broadcast_permissions,
-    permissions,
-    roles,
-)
 from app.utils import merge_jsonlike
+from app.utils.user import distinct_email_addresses
+from app.utils.user_permissions import (
+    all_ui_permissions,
+    broadcast_permission_options,
+    permission_options,
+)
 
 
 def get_time_value_and_label(future_time):
@@ -556,6 +557,10 @@ class StripWhitespaceForm(Form):
             bound.get_form = weakref.ref(form)  # GC won't collect the form if we don't use a weakref
             return bound
 
+        def render_field(self, field, render_kw):
+            render_kw.setdefault('required', False)
+            return super().render_field(field, render_kw)
+
 
 class StripWhitespaceStringField(GovukTextInputField):
     def __init__(self, label=None, param_extensions=None, **kwargs):
@@ -933,20 +938,20 @@ class GovukRadiosFieldWithNoneOption(FieldWithNoneOption, GovukRadiosField):
     pass
 
 
-# guard against data entries that aren't a role in permissions
+# guard against data entries that aren't a known permission
 def filter_by_permissions(valuelist):
     if valuelist is None:
         return None
     else:
-        return [entry for entry in valuelist if any(entry in role for role in permissions)]
+        return [entry for entry in valuelist if any(entry in option for option in permission_options)]
 
 
-# guard against data entries that aren't a role in broadcast_permissions
+# guard against data entries that aren't a known broadcast permission
 def filter_by_broadcast_permissions(valuelist):
     if valuelist is None:
         return None
     else:
-        return [entry for entry in valuelist if any(entry in role for role in broadcast_permissions)]
+        return [entry for entry in valuelist if any(entry in option for option in broadcast_permission_options)]
 
 
 class BasePermissionsForm(StripWhitespaceForm):
@@ -977,7 +982,7 @@ class BasePermissionsForm(StripWhitespaceForm):
         'Permissions',
         filters=[filter_by_permissions],
         choices=[
-            (value, label) for value, label in permissions
+            (value, label) for value, label in permission_options
         ],
         param_extensions={
             "hint": {"text": "All team members can see sent messages."}
@@ -990,14 +995,22 @@ class BasePermissionsForm(StripWhitespaceForm):
 
     @classmethod
     def from_user(cls, user, service_id, **kwargs):
-        return cls(
+        form = cls(
             **kwargs,
             **{
-                "permissions_field": [
-                    role for role in roles.keys() if user.has_permission_for_service(service_id, role)]
+                "permissions_field": (
+                    user.permissions_for_service(service_id) & all_ui_permissions
+                )
+
             },
             login_authentication=user.auth_type
         )
+
+        # If a user logs in with a security key, we generally don't want a service admin to be able to change this.
+        # As well as enforcing this in the backend, we need to delete the auth radios to prevent validation errors.
+        if user.webauthn_auth:
+            del form.login_authentication
+        return form
 
 
 class PermissionsForm(BasePermissionsForm):
@@ -1009,7 +1022,7 @@ class BroadcastPermissionsForm(BasePermissionsForm):
     permissions_field = GovukCheckboxesField(
         'Permissions',
         choices=[
-            (value, label) for value, label in broadcast_permissions
+            (value, label) for value, label in broadcast_permission_options
         ],
         filters=[filter_by_broadcast_permissions],
         param_extensions={
@@ -1025,12 +1038,14 @@ class BroadcastPermissionsForm(BasePermissionsForm):
 class BaseInviteUserForm():
     email_address = email_address(gov_user=False)
 
-    def __init__(self, invalid_email_address, *args, **kwargs):
+    def __init__(self, inviter_email_address, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.invalid_email_address = invalid_email_address.lower()
+        self.inviter_email_address = inviter_email_address
 
     def validate_email_address(self, field):
-        if field.data.lower() == self.invalid_email_address and not current_user.platform_admin:
+        if current_user.platform_admin:
+            return
+        if field.data.lower() == self.inviter_email_address.lower():
             raise ValidationError("You cannot send an invitation to yourself")
 
 
@@ -1041,17 +1056,13 @@ class InviteUserForm(BaseInviteUserForm, PermissionsForm):
 class BroadcastInviteUserForm(BaseInviteUserForm, BroadcastPermissionsForm):
     email_address = email_address(gov_user=True)
 
-
-class InviteOrgUserForm(StripWhitespaceForm):
-    email_address = email_address(gov_user=False)
-
-    def __init__(self, invalid_email_address, *args, **kwargs):
-        super(InviteOrgUserForm, self).__init__(*args, **kwargs)
-        self.invalid_email_address = invalid_email_address.lower()
-
     def validate_email_address(self, field):
-        if field.data.lower() == self.invalid_email_address and not current_user.platform_admin:
+        if not distinct_email_addresses(field.data, self.inviter_email_address):
             raise ValidationError("You cannot send an invitation to yourself")
+
+
+class InviteOrgUserForm(BaseInviteUserForm, StripWhitespaceForm):
+    pass
 
 
 class TwoFactorForm(StripWhitespaceForm):
@@ -1340,19 +1351,19 @@ class LetterAddressForm(StripWhitespaceForm):
         if not address.has_valid_last_line:
             if self.allow_international_letters:
                 raise ValidationError(
-                    f'Last line of the address must be a UK postcode or another country'
+                    'Last line of the address must be a UK postcode or another country'
                 )
             if address.international:
                 raise ValidationError(
-                    f'You do not have permission to send letters to other countries'
+                    'You do not have permission to send letters to other countries'
                 )
             raise ValidationError(
-                f'Last line of the address must be a real UK postcode'
+                'Last line of the address must be a real UK postcode'
             )
 
         if address.has_invalid_characters:
             raise ValidationError(
-                'Address lines must not start with any of the following characters: @ ( ) = [ ] ” \\ / , < >'
+                'Address lines must not start with any of the following characters: @ ( ) = [ ] ” \\ / , < > ~'
             )
 
 
@@ -1639,7 +1650,7 @@ class ServiceSmsSenderForm(StripWhitespaceForm):
             DataRequired(message="Cannot be empty"),
             Length(max=11, message="Enter 11 characters or fewer"),
             Length(min=3, message="Enter 3 characters or more"),
-            LettersNumbersFullStopsAndUnderscoresOnly(),
+            LettersNumbersSingleQuotesFullStopsAndUnderscoresOnly(),
             DoesNotStartWithDoubleZero(),
             SenderBlocklistValidator(values=[])
         ]
@@ -1651,11 +1662,11 @@ class ServiceEditInboundNumberForm(StripWhitespaceForm):
     is_default = GovukCheckboxField("Make this text message sender the default")
 
 
-class EditServiceNotesForm(StripWhitespaceForm):
+class EditNotesForm(StripWhitespaceForm):
     notes = TextAreaField(validators=[])
 
 
-class ServiceBillingDetailsForm(StripWhitespaceForm):
+class BillingDetailsForm(StripWhitespaceForm):
     billing_contact_email_addresses = GovukTextInputField('Contact email addresses')
     billing_contact_names = GovukTextInputField('Contact names')
     billing_reference = GovukTextInputField('Reference')
@@ -1886,6 +1897,17 @@ class SearchNotificationsForm(StripWhitespaceForm):
         self.to.label.text = self.labels.get(
             message_type,
             'Search by phone number or email address',
+        )
+
+
+class SearchTemplatesForm(StripWhitespaceForm):
+
+    search = GovukSearchField()
+
+    def __init__(self, api_keys, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.search.label.text = (
+            'Search by name or ID' if api_keys else 'Search by name'
         )
 
 
@@ -2362,3 +2384,13 @@ class BroadcastAreaFormWithSelectAll(BroadcastAreaForm):
         if self.select_all.data:
             return [self.select_all.area_slug]
         return self.areas.data
+
+
+class ChangeSecurityKeyNameForm(StripWhitespaceForm):
+    security_key_name = GovukTextInputField(
+        'Name of key',
+        validators=[
+            DataRequired(message='Cannot be empty'),
+            MustContainAlphanumericCharacters(),
+            Length(max=255, message='Name of key must be 255 characters or fewer')
+        ])

@@ -28,9 +28,12 @@ from app.main.forms import (
     PermissionsForm,
     SearchUsersForm,
 )
-from app.models.roles_and_permissions import broadcast_permissions, permissions
 from app.models.user import InvitedUser, User
-from app.utils import is_gov_user, user_has_permissions
+from app.utils.user import is_gov_user, user_has_permissions
+from app.utils.user_permissions import (
+    broadcast_permission_options,
+    permission_options,
+)
 
 
 @main.route("/services/<uuid:service_id>/users")
@@ -43,7 +46,7 @@ def manage_users(service_id):
         show_search_box=(len(current_service.team_members) > 7),
         form=SearchUsersForm(),
         permissions=(
-            broadcast_permissions if current_service.has_permission('broadcast') else permissions
+            broadcast_permission_options if current_service.has_permission('broadcast') else permission_options
         ),
     )
 
@@ -59,7 +62,7 @@ def invite_user(service_id, user_id=None):
         form_class = InviteUserForm
 
     form = form_class(
-        invalid_email_address=current_user.email_address,
+        inviter_email_address=current_user.email_address,
         all_template_folders=current_service.all_template_folders,
         folder_permissions=[f['id'] for f in current_service.all_template_folders]
     )
@@ -141,8 +144,11 @@ def edit_user_permissions(service_id, user_id):
             service_id,
             permissions=form.permissions,
             folder_permissions=form.folder_permissions.data,
+            set_by_id=current_user.id,
         )
-        if service_has_email_auth:
+        # Only change the auth type if this is supported for a service. If a user logs in with a
+        # security key, we generally don't want them to be able to use something less secure.
+        if service_has_email_auth and not user.auth_type == 'webauthn_auth':
             user.update(auth_type=form.login_authentication.data)
         return redirect(url_for('.manage_users', service_id=service_id))
 
@@ -171,7 +177,11 @@ def remove_user_from_service(service_id, user_id):
         else:
             abort(500, e)
     else:
-        create_remove_user_from_service_event(user_id=user_id, removed_by_id=current_user.id, service_id=service_id)
+        create_remove_user_from_service_event(
+            user_id=user_id,
+            removed_by_id=current_user.id,
+            service_id=service_id
+        )
 
     return redirect(url_for(
         '.manage_users',
@@ -226,7 +236,12 @@ def confirm_edit_user_email(service_id, user_id):
         except HTTPError as e:
             abort(500, e)
         else:
-            create_email_change_event(user.id, current_user.id, user.email_address, new_email)
+            create_email_change_event(
+                user_id=user.id,
+                updated_by_id=current_user.id,
+                original_email_address=user.email_address,
+                new_email_address=new_email
+            )
         finally:
             session.pop(session_key, None)
 
@@ -284,7 +299,12 @@ def confirm_edit_user_mobile_number(service_id, user_id):
         except HTTPError as e:
             abort(500, e)
         else:
-            create_mobile_number_change_event(user.id, current_user.id, user.mobile_number, new_number)
+            create_mobile_number_change_event(
+                user_id=user.id,
+                updated_by_id=current_user.id,
+                original_mobile_number=user.mobile_number,
+                new_mobile_number=new_number
+            )
         finally:
             session.pop('team_member_mobile_change', None)
 

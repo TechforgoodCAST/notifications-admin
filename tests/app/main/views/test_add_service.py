@@ -1,7 +1,8 @@
 import pytest
 from flask import session, url_for
+from notifications_python_client.errors import HTTPError
 
-from app.utils import is_gov_user
+from app.utils.user import is_gov_user
 from tests import organisation_json
 from tests.conftest import normalize_spaces
 
@@ -219,7 +220,7 @@ def test_get_should_only_show_nhs_org_types_radios_if_user_has_nhs_email(
     ('other', 1000),
 ])
 def test_should_add_service_and_redirect_to_dashboard_when_existing_service(
-    app_,
+    notify_admin,
     mocker,
     client_request,
     mock_create_service,
@@ -251,7 +252,7 @@ def test_should_add_service_and_redirect_to_dashboard_when_existing_service(
         service_name='testing the post',
         service_description='description',
         organisation_type=organisation_type,
-        message_limit=app_.config['DEFAULT_SERVICE_LIMIT'],
+        message_limit=notify_admin.config['DEFAULT_SERVICE_LIMIT'],
         restricted=True,
         user_id=api_user_active['id'],
         email_from='testing.the.post',
@@ -282,9 +283,21 @@ def test_add_service_fails_if_service_name_fails_validation(
 
 def test_should_return_form_errors_with_duplicate_service_name_regardless_of_case(
     client_request,
-    mock_create_duplicate_service,
     mock_get_organisation_by_domain,
+    mocker,
 ):
+
+    def _create(**_kwargs):
+        json_mock = mocker.Mock(return_value={'message': {'name': ["Duplicate service name"]}})
+        resp_mock = mocker.Mock(status_code=400, json=json_mock)
+        http_error = HTTPError(response=resp_mock, message="Default message")
+        raise http_error
+
+    mocker.patch(
+        'app.service_api_client.create_service',
+        side_effect=_create
+    )
+
     page = client_request.post(
         'main.add_service',
         _data={

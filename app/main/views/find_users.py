@@ -7,7 +7,7 @@ from app.event_handlers import create_archive_user_event
 from app.main import main
 from app.main.forms import SearchUsersByEmailForm
 from app.models.user import User
-from app.utils import user_is_platform_admin
+from app.utils.user import user_is_platform_admin
 
 
 @main.route("/find-users-by-email", methods=['GET', 'POST'])
@@ -44,7 +44,7 @@ def archive_user(user_id):
                 flash('User can’t be removed from a service - '
                       'check all services have another team member with manage_settings')
                 return redirect(url_for('main.user_information', user_id=user_id))
-        create_archive_user_event(str(user_id), current_user.id)
+        create_archive_user_event(user_id=str(user_id), archived_by_id=current_user.id)
 
         return redirect(url_for('.user_information', user_id=user_id))
     else:

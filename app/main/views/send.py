@@ -52,13 +52,12 @@ from app.s3_client.s3_csv_client import (
 from app.template_previews import TemplatePreview, get_page_count_for_letter
 from app.utils import (
     PermanentRedirect,
-    Spreadsheet,
-    get_errors_for_csv,
-    get_template,
     should_skip_template_page,
     unicode_truncate,
-    user_has_permissions,
 )
+from app.utils.csv import Spreadsheet, get_errors_for_csv
+from app.utils.templates import get_template
+from app.utils.user import user_has_permissions
 
 letter_address_columns = [
     column.replace('_', ' ')
@@ -613,8 +612,8 @@ def _check_messages(service_id, template_id, upload_id, preview_row, letters_as_
         if e.status_code != 404:
             raise
 
-    statistics = service_api_client.get_service_statistics(service_id, today_only=True)
-    remaining_messages = (current_service.message_limit - sum(stat['requested'] for stat in statistics.values()))
+    notification_count = service_api_client.get_notification_count(service_id)
+    remaining_messages = (current_service.message_limit - notification_count)
 
     contents = s3download(service_id, upload_id)
 
@@ -742,7 +741,7 @@ def check_messages(service_id, template_id, upload_id, row_index=2):
         'original_file_name': data.get('original_file_name', ''),
     }
 
-    if session.get('sender_id'):
+    if session.get('sender_id') and data['template'].template_type != 'letter':
         metadata_kwargs['sender_id'] = session['sender_id']
 
     set_metadata_on_csv_upload(service_id, upload_id, **metadata_kwargs)
@@ -874,7 +873,7 @@ def get_send_test_page_title(template_type, entering_recipient, name=None):
 
 def get_back_link(service_id, template, step_index, placeholders=None):
     if step_index == 0:
-        if should_skip_template_page(template.template_type):
+        if should_skip_template_page(template._template):
             return url_for(
                 '.choose_template',
                 service_id=service_id,

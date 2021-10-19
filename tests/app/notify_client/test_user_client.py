@@ -1,9 +1,11 @@
 import uuid
-from unittest.mock import call
+from unittest.mock import Mock, call
 
 import pytest
+from notifications_python_client.errors import HTTPError
 
 from app import invite_api_client, service_api_client, user_api_client
+from app.models.webauthn_credential import WebAuthnCredential
 from tests import sample_uuid
 from tests.conftest import SERVICE_ONE_ID
 
@@ -33,14 +35,14 @@ def test_client_gets_all_users_for_service(
 def test_client_uses_correct_find_by_email(mocker, api_user_active):
 
     expected_url = '/user/email'
-    expected_params = {'email': api_user_active['email_address']}
+    expected_data = {'email': api_user_active['email_address']}
 
     user_api_client.max_failed_login_count = 1  # doesn't matter for this test
-    mock_get = mocker.patch('app.notify_client.user_api_client.UserApiClient.get')
+    mock_post = mocker.patch('app.notify_client.user_api_client.UserApiClient.post')
 
     user_api_client.get_user_by_email(api_user_active['email_address'])
 
-    mock_get.assert_called_once_with(expected_url, params=expected_params)
+    mock_post.assert_called_once_with(expected_url, data=expected_data)
 
 
 def test_client_only_updates_allowed_attributes(mocker):
@@ -70,7 +72,7 @@ def test_client_activates_if_pending(mocker, api_user_pending):
 
 
 def test_client_passes_admin_url_when_sending_email_auth(
-    app_,
+    notify_admin,
     mocker,
     fake_uuid,
 ):
@@ -87,7 +89,7 @@ def test_client_passes_admin_url_when_sending_email_auth(
     )
 
 
-def test_client_converts_admin_permissions_to_db_permissions_on_edit(app_, mocker):
+def test_client_converts_admin_permissions_to_db_permissions_on_edit(notify_admin, mocker):
     mock_post = mocker.patch('app.notify_client.user_api_client.UserApiClient.post')
 
     user_api_client.set_user_permissions('user_id', 'service_id', permissions={'send_messages', 'view_activity'})
@@ -100,7 +102,7 @@ def test_client_converts_admin_permissions_to_db_permissions_on_edit(app_, mocke
     ], key=lambda x: x['permission'])
 
 
-def test_client_converts_admin_permissions_to_db_permissions_on_add_to_service(app_, mocker):
+def test_client_converts_admin_permissions_to_db_permissions_on_add_to_service(notify_admin, mocker):
     mock_post = mocker.patch('app.notify_client.user_api_client.UserApiClient.post', return_value={'data': {}})
 
     user_api_client.add_user_to_service('service_id',
@@ -154,7 +156,7 @@ def test_client_converts_admin_permissions_to_db_permissions_on_add_to_service(a
     ]
 )
 def test_returns_value_from_cache(
-    app_,
+    notify_admin,
     mocker,
     expected_cache_get_calls,
     cache_value,
@@ -190,6 +192,7 @@ def test_returns_value_from_cache(
     (user_api_client, 'update_password', [user_id, 'hunter2'], {}),
     (user_api_client, 'verify_password', [user_id, 'hunter2'], {}),
     (user_api_client, 'check_verify_code', [user_id, '', ''], {}),
+    (user_api_client, 'complete_webauthn_login_attempt', [user_id], {'is_successful': True}),
     (user_api_client, 'add_user_to_service', [SERVICE_ONE_ID, user_id, [], []], {}),
     (user_api_client, 'add_user_to_organisation', [sample_uuid(), user_id], {}),
     (user_api_client, 'set_user_permissions', [user_id, SERVICE_ONE_ID, []], {}),
@@ -200,7 +203,7 @@ def test_returns_value_from_cache(
     (invite_api_client, 'accept_invite', [SERVICE_ONE_ID, user_id], {}),
 ])
 def test_deletes_user_cache(
-    app_,
+    notify_admin,
     mock_get_user,
     mocker,
     client,
@@ -238,3 +241,68 @@ def test_add_user_to_service_calls_correct_endpoint_and_deletes_keys_from_cache(
         call('service-{service_id}-template-folders'.format(service_id=service_id)),
         call('service-{service_id}'.format(service_id=service_id)),
     ]
+
+
+def test_get_webauthn_credentials_for_user(mocker, webauthn_credential, fake_uuid):
+
+    mock_get = mocker.patch(
+        'app.notify_client.user_api_client.UserApiClient.get',
+        return_value={'data': [webauthn_credential]}
+    )
+
+    credentials = user_api_client.get_webauthn_credentials_for_user(fake_uuid)
+
+    mock_get.assert_called_once_with(f'/user/{fake_uuid}/webauthn')
+    assert len(credentials) == 1
+    assert credentials[0]['name'] == 'Test credential'
+
+
+def test_create_webauthn_credential_for_user(mocker, webauthn_credential, fake_uuid):
+    credential = WebAuthnCredential(webauthn_credential)
+
+    mock_post = mocker.patch('app.notify_client.user_api_client.UserApiClient.post')
+    expected_url = f'/user/{fake_uuid}/webauthn'
+
+    user_api_client.create_webauthn_credential_for_user(fake_uuid, credential)
+    mock_post.assert_called_once_with(expected_url, data=credential.serialize())
+
+
+def test_complete_webauthn_login_attempt_returns_true_and_no_message_normally(fake_uuid, mocker):
+    mock_post = mocker.patch('app.notify_client.user_api_client.UserApiClient.post')
+
+    resp = user_api_client.complete_webauthn_login_attempt(fake_uuid, is_successful=True)
+
+    expected_data = {'successful': True}
+    mock_post.assert_called_once_with(f'/user/{fake_uuid}/complete/webauthn-login', data=expected_data)
+    assert resp == (True, '')
+
+
+def test_complete_webauthn_login_attempt_returns_false_and_message_on_403(fake_uuid, mocker):
+    mock_post = mocker.patch(
+        'app.notify_client.user_api_client.UserApiClient.post',
+        side_effect=HTTPError(
+            response=Mock(
+                status_code=403,
+                json=Mock(
+                    return_value={'message': 'forbidden'}
+                )
+            )
+        )
+    )
+
+    resp = user_api_client.complete_webauthn_login_attempt(fake_uuid, is_successful=True)
+
+    expected_data = {'successful': True}
+    mock_post.assert_called_once_with(f'/user/{fake_uuid}/complete/webauthn-login', data=expected_data)
+
+    assert resp == (False, 'forbidden')
+
+
+def test_complete_webauthn_login_attempt_raises_on_api_error(fake_uuid, mocker):
+    mocker.patch(
+        'app.notify_client.user_api_client.UserApiClient.post',
+        side_effect=HTTPError(response=Mock(status_code=503, message='error'))
+    )
+
+    with pytest.raises(HTTPError):
+        user_api_client.complete_webauthn_login_attempt(fake_uuid, is_successful=True)

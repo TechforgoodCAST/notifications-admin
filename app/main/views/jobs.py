@@ -29,21 +29,22 @@ from app import (
     notification_api_client,
     service_api_client,
 )
-from app.formatters import get_time_left
+from app.formatters import get_time_left, message_count_noun
 from app.main import main
 from app.main.forms import SearchNotificationsForm
 from app.models.job import Job
-from app.utils import (
-    generate_next_dict,
-    generate_notifications_csv,
-    generate_previous_dict,
+from app.utils import parse_filter_args, set_status_filters
+from app.utils.csv import generate_notifications_csv
+from app.utils.letters import (
     get_letter_printing_statement,
-    get_page_from_request,
-    parse_filter_args,
     printing_today_or_tomorrow,
-    set_status_filters,
-    user_has_permissions,
 )
+from app.utils.pagination import (
+    generate_next_dict,
+    generate_previous_dict,
+    get_page_from_request,
+)
+from app.utils.user import user_has_permissions
 
 
 @main.route("/services/<uuid:service_id>/jobs")
@@ -271,7 +272,6 @@ def get_notifications(service_id, message_type, status_override=None):
                 message_type,
                 service_api_client.get_service_statistics(
                     service_id,
-                    today_only=False,
                     limit_days=service_data_retention_days
                 )
             )
@@ -336,6 +336,8 @@ def get_status_filters(service, message_type, statistics):
 
 
 def _get_job_counts(job):
+    job_type = job.template_type
+
     return [
         (
             label,
@@ -349,19 +351,31 @@ def _get_job_counts(job):
             count
         ) for label, query_param, count in [
             [
-                'total', '',
+                Markup(
+                    f'''total<span class="govuk-visually-hidden">
+                    {"text message" if job_type == "sms" else job_type}s</span>'''),
+                '',
                 job.notification_count
             ],
             [
-                'sending', 'sending',
+                Markup(
+                    f'''sending<span class="govuk-visually-hidden">
+                    {message_count_noun(job.notifications_sending, job_type)}</span>'''),
+                'sending',
                 job.notifications_sending
             ],
             [
-                'delivered', 'delivered',
+                Markup(
+                    f'''delivered<span class="govuk-visually-hidden">
+                    {message_count_noun(job.notifications_delivered, job_type)}</span>'''),
+                'delivered',
                 job.notifications_delivered
             ],
             [
-                'failed', 'failed',
+                Markup(
+                    f'''failed<span class="govuk-visually-hidden">
+                    {message_count_noun(job.notifications_failed, job_type)}</span>'''),
+                'failed',
                 job.notifications_failed
             ]
         ]

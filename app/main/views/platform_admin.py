@@ -27,13 +27,13 @@ from app.statistics_utils import (
     get_formatted_percentage,
     get_formatted_percentage_two_dp,
 )
-from app.utils import (
-    Spreadsheet,
+from app.utils.csv import Spreadsheet
+from app.utils.pagination import (
     generate_next_dict,
     generate_previous_dict,
     get_page_from_request,
-    user_is_platform_admin,
 )
+from app.utils.user import user_is_platform_admin
 
 COMPLAINT_THRESHOLD = 0.02
 FAILURE_THRESHOLD = 3
@@ -245,33 +245,6 @@ def live_services_csv():
     }
 
 
-@main.route("/platform-admin/reports/performance-platform.xlsx")
-@user_is_platform_admin
-def performance_platform_xlsx():
-    results = service_api_client.get_live_services_data()["data"]
-    live_services_columns = ["service_id", "agency", "service_name", "_timestamp", "service", "count"]
-    live_services_data = []
-    live_services_data.append(live_services_columns)
-    for row in results:
-        live_services_data.append([
-            row["service_id"],
-            row["organisation_name"],
-            row["service_name"],
-            datetime.strptime(
-                row["live_date"], '%a, %d %b %Y %X %Z'
-            ).strftime("%Y-%m-%dT%H:%M:%S") + "Z" if row["live_date"] else None,
-            "govuk-notify",
-            1
-        ])
-
-    return Spreadsheet.from_rows(live_services_data).as_excel_file, 200, {
-        'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        'Content-Disposition': 'attachment; filename="{} performance platform report.xlsx"'.format(
-            format_date_numeric(datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%fZ")),
-        )
-    }
-
-
 @main.route("/platform-admin/reports/notifications-sent-by-service", methods=['GET', 'POST'])
 @user_is_platform_admin
 def notifications_sent_by_service():
@@ -287,9 +260,6 @@ def notifications_sent_by_service():
         ]
         result = notification_api_client.get_notification_status_by_service(start_date, end_date)
 
-        for row in result:
-            row[0] = datetime.strptime(row[0], '%a, %d %b %Y %X %Z').strftime('%Y-%m-%d')
-
         return Spreadsheet.from_rows([headers] + result).as_csv_data, 200, {
             'Content-Type': 'text/csv; charset=utf-8',
             'Content-Disposition': 'attachment; filename="{} to {} notification status per service report.csv"'.format(
@@ -301,33 +271,46 @@ def notifications_sent_by_service():
 
 @main.route("/platform-admin/reports/usage-for-all-services", methods=['GET', 'POST'])
 @user_is_platform_admin
-def usage_for_all_services():
+def get_billing_report():
     form = RequiredDateFilterForm()
 
     if form.validate_on_submit():
         start_date = form.start_date.data
         end_date = form.end_date.data
-        headers = ["organisation_id", "organisation_name", "service_id", "service_name",
-                   "sms_cost", "sms_fragments", "letter_cost", "letter_breakdown"]
+        headers = [
+            "organisation_id", "organisation_name", "service_id", "service_name",
+            "sms_cost", "sms_fragments", "letter_cost", "letter_breakdown", "purchase_order_number",
+            "contact_names", "contact_email_addresses", "billing_reference"
+        ]
 
-        result = billing_api_client.get_usage_for_all_services(start_date, end_date)
+        try:
+            result = billing_api_client.get_data_for_billing_report(start_date, end_date)
+        except HTTPError as e:
+            message = 'Date must be in a single financial year.'
+            if e.status_code == 400 and e.message == message:
+                flash(message)
+                return render_template('views/platform-admin/get-billing-report.html', form=form)
+            else:
+                raise e
         rows = [
             [
-                r['organisation_id'], r["organisation_name"], r["service_id"], r["service_name"],
-                r["sms_cost"], r['sms_fragments'], r["letter_cost"], r["letter_breakdown"].strip()
+                r["organisation_id"], r["organisation_name"], r["service_id"], r["service_name"],
+                r["sms_cost"], r["sms_fragments"], r["letter_cost"], r["letter_breakdown"].strip(),
+                r.get("purchase_order_number"), r.get("contact_names"), r.get("contact_email_addresses"),
+                r.get("billing_reference")
             ]
             for r in result
         ]
         if rows:
             return Spreadsheet.from_rows([headers] + rows).as_csv_data, 200, {
                 'Content-Type': 'text/csv; charset=utf-8',
-                'Content-Disposition': 'attachment; filename="Usage for all services from {} to {}.csv"'.format(
+                'Content-Disposition': 'attachment; filename="Billing Report from {} to {}.csv"'.format(
                     start_date, end_date
                 )
             }
         else:
             flash('No results for dates')
-    return render_template('views/platform-admin/usage_for_all_services.html', form=form)
+    return render_template('views/platform-admin/get-billing-report.html', form=form)
 
 
 @main.route("/platform-admin/complaints")

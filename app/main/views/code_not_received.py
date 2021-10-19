@@ -4,7 +4,7 @@ from app import user_api_client
 from app.main import main
 from app.main.forms import TextNotReceivedForm
 from app.models.user import User
-from app.utils import redirect_to_sign_in
+from app.utils.login import redirect_to_sign_in
 
 
 @main.route('/resend-email-verification')
@@ -43,7 +43,7 @@ def check_and_resend_verification_code():
     if user.state == 'pending':
         return redirect(url_for('main.verify', next=redirect_url))
     else:
-        return redirect(url_for('main.two_factor', next=redirect_url))
+        return redirect(url_for('main.two_factor_sms', next=redirect_url))
 
 
 @main.route('/email-not-received', methods=['GET'])

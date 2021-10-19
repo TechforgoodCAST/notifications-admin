@@ -18,7 +18,8 @@ from app.main.forms import (
     SearchByNameForm,
 )
 from app.models.broadcast_message import BroadcastMessage, BroadcastMessages
-from app.utils import service_has_permission, user_has_permissions
+from app.utils import service_has_permission
+from app.utils.user import user_has_permissions
 
 
 @main.route('/services/<uuid:service_id>/broadcast-tour/<int:step_index>')

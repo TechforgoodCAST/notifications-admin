@@ -1,20 +1,27 @@
-from flask import abort, current_app, request, session
+from datetime import datetime
+
+from flask import abort, request, session
 from flask_login import AnonymousUserMixin, UserMixin, login_user, logout_user
 from notifications_python_client.errors import HTTPError
 from notifications_utils.timezones import utc_string_to_aware_gmt_datetime
 from werkzeug.utils import cached_property
 
+from app.event_handlers import (
+    create_add_user_to_service_event,
+    create_set_user_permissions_event,
+)
 from app.models import JSONModel, ModelList
 from app.models.organisation import Organisation
-from app.models.roles_and_permissions import (
-    all_permissions,
-    translate_permissions_from_db_to_admin_roles,
-)
+from app.models.webauthn_credential import WebAuthnCredentials
 from app.notify_client import InviteTokenError
 from app.notify_client.invite_api_client import invite_api_client
 from app.notify_client.org_invite_api_client import org_invite_api_client
 from app.notify_client.user_api_client import user_api_client
-from app.utils import is_gov_user
+from app.utils.user import is_gov_user
+from app.utils.user_permissions import (
+    all_ui_permissions,
+    translate_permissions_from_db_to_ui,
+)
 
 
 def _get_service_id_from_view_args():
@@ -27,7 +34,10 @@ def _get_org_id_from_view_args():
 
 class User(JSONModel, UserMixin):
 
+    MAX_FAILED_LOGIN_COUNT = 10
+
     ALLOWED_PROPERTIES = {
+        'can_use_webauthn',
         'id',
         'name',
         'email_address',
@@ -45,7 +55,6 @@ class User(JSONModel, UserMixin):
     def __init__(self, _dict):
         super().__init__(_dict)
         self.permissions = _dict.get('permissions', {})
-        self.max_failed_login_count = current_app.config['MAX_FAILED_LOGIN_COUNT']
         self._platform_admin = _dict['platform_admin']
 
     @classmethod
@@ -96,7 +105,7 @@ class User(JSONModel, UserMixin):
         them out later, we'll need to rework this function.
         """
         self._permissions = {
-            service: translate_permissions_from_db_to_admin_roles(permissions)
+            service: translate_permissions_from_db_to_ui(permissions)
             for service, permissions
             in permissions_by_service.items()
         }
@@ -105,9 +114,14 @@ class User(JSONModel, UserMixin):
         response = user_api_client.update_user_attribute(self.id, **kwargs)
         self.__init__(response)
 
-    def update_password(self, password, validated_email_access=False):
-        response = user_api_client.update_password(self.id, password, validated_email_access=validated_email_access)
+    def update_password(self, password):
+        response = user_api_client.update_password(self.id, password)
         self.__init__(response)
+
+    def update_email_access_validated_at(self):
+        self.update(
+            email_access_validated_at=datetime.utcnow().isoformat()
+        )
 
     def password_changed_more_recently_than(self, datetime_string):
         if not self.password_changed_at:
@@ -118,12 +132,19 @@ class User(JSONModel, UserMixin):
             datetime_string
         )
 
-    def set_permissions(self, service_id, permissions, folder_permissions):
+    def set_permissions(self, service_id, permissions, folder_permissions, set_by_id):
         user_api_client.set_user_permissions(
             self.id,
             service_id,
             permissions=permissions,
             folder_permissions=folder_permissions,
+        )
+        create_set_user_permissions_event(
+            user_id=self.id,
+            service_id=service_id,
+            original_ui_permissions=self.permissions_for_service(service_id),
+            new_ui_permissions=permissions,
+            set_by_id=set_by_id,
         )
 
     def logged_in_elsewhere(self):
@@ -140,19 +161,11 @@ class User(JSONModel, UserMixin):
         login_user(self)
         session['user_id'] = self.id
 
-    def sign_in(self):
-
-        session['user_details'] = {"email": self.email_address, "id": self.id}
-
-        if not self.is_active:
-            return False
-
+    def send_login_code(self):
         if self.email_auth:
             user_api_client.send_verify_code(self.id, 'email', None, request.args.get('next'))
         if self.sms_auth:
             user_api_client.send_verify_code(self.id, 'sms', self.mobile_number)
-
-        return True
 
     def sign_out(self):
         session.clear()
@@ -191,7 +204,7 @@ class User(JSONModel, UserMixin):
         return self._platform_admin and not session.get('disable_platform_admin_view', False)
 
     def has_permissions(self, *permissions, restrict_admin_usage=False, allow_org_user=False):
-        unknown_permissions = set(permissions) - all_permissions
+        unknown_permissions = set(permissions) - all_ui_permissions
         if unknown_permissions:
             raise TypeError('{} are not valid permissions'.format(list(unknown_permissions)))
 
@@ -215,8 +228,7 @@ class User(JSONModel, UserMixin):
             return True
 
         if any(
-            self.has_permission_for_service(service_id, permission)
-            for permission in permissions
+            self.permissions_for_service(service_id) & set(permissions)
         ):
             return True
 
@@ -225,6 +237,9 @@ class User(JSONModel, UserMixin):
         return allow_org_user and self.belongs_to_organisation(
             Service.from_id(service_id).organisation_id
         )
+
+    def permissions_for_service(self, service_id):
+        return self._permissions.get(service_id, set())
 
     def has_permission_for_service(self, service_id, permission):
         return permission in self._permissions.get(service_id, [])
@@ -261,7 +276,7 @@ class User(JSONModel, UserMixin):
 
     @property
     def locked(self):
-        return self.failed_login_count >= self.max_failed_login_count
+        return self.failed_login_count >= self.MAX_FAILED_LOGIN_COUNT
 
     @property
     def email_domain(self):
@@ -290,13 +305,6 @@ class User(JSONModel, UserMixin):
         ]
 
     @property
-    def services_without_organisations(self):
-        return [
-            service for service in self.services
-            if not self.belongs_to_organisation(service.organisation_id)
-        ]
-
-    @property
     def service_ids(self):
         return self._dict['services']
 
@@ -311,12 +319,6 @@ class User(JSONModel, UserMixin):
         return [
             service for service in self.services if service.live
         ]
-
-    @property
-    def live_services_not_belonging_to_users_organisations(self):
-        return self.sort_services(
-            set(self.live_services).union(self.services_without_organisations)
-        )
 
     @property
     def organisations(self):
@@ -354,6 +356,15 @@ class User(JSONModel, UserMixin):
         return self.email_address.lower().endswith((
             '@nhs.uk', '.nhs.uk', '@nhs.net', '.nhs.net',
         ))
+
+    @property
+    def webauthn_credentials(self):
+        return WebAuthnCredentials(self.id)
+
+    def create_webauthn_credential(self, credential):
+        user_api_client.create_webauthn_credential_for_user(
+            self.id, credential
+        )
 
     def serialize(self):
         dct = {
@@ -405,13 +416,19 @@ class User(JSONModel, UserMixin):
         self.current_session_id = user_api_client.get_user(self.id).get('current_session_id')
         session['current_session_id'] = self.current_session_id
 
-    def add_to_service(self, service_id, permissions, folder_permissions):
+    def add_to_service(self, service_id, permissions, folder_permissions, invited_by_id):
         try:
             user_api_client.add_user_to_service(
                 service_id,
                 self.id,
                 permissions,
                 folder_permissions,
+            )
+            create_add_user_to_service_event(
+                user_id=self.id,
+                invited_by_id=invited_by_id,
+                service_id=service_id,
+                ui_permissions=permissions,
             )
         except HTTPError as exception:
             if exception.status_code == 400 and 'already part of service' in exception.message:
@@ -424,6 +441,9 @@ class User(JSONModel, UserMixin):
             organisation_id,
             self.id,
         )
+
+    def complete_webauthn_login_attempt(self, is_successful=True):
+        return user_api_client.complete_webauthn_login_attempt(self.id, is_successful)
 
 
 class InvitedUser(JSONModel):
@@ -466,7 +486,13 @@ class InvitedUser(JSONModel):
     @classmethod
     def by_id_and_service_id(cls, service_id, invited_user_id):
         return cls(
-            invite_api_client.get_invited_user(service_id, invited_user_id)
+            invite_api_client.get_invited_user_for_org(service_id, invited_user_id)
+        )
+
+    @classmethod
+    def by_id(cls, invited_user_id):
+        return cls(
+            invite_api_client.get_invited_user(invited_user_id)
         )
 
     def accept_invite(self):
@@ -482,7 +508,7 @@ class InvitedUser(JSONModel):
             self._permissions = permissions
         else:
             self._permissions = permissions.split(',')
-        self._permissions = translate_permissions_from_db_to_admin_roles(self.permissions)
+        self._permissions = translate_permissions_from_db_to_ui(self.permissions)
 
     @property
     def from_user(self):
@@ -496,6 +522,10 @@ class InvitedUser(JSONModel):
     def email_auth(self):
         return self.auth_type == 'email_auth'
 
+    @property
+    def webauthn_auth(self):
+        return self.auth_type == 'webauthn_auth'
+
     @classmethod
     def from_token(cls, token):
         try:
@@ -508,8 +538,8 @@ class InvitedUser(JSONModel):
 
     @classmethod
     def from_session(cls):
-        invited_user = session.get('invited_user')
-        return cls(invited_user) if invited_user else None
+        invited_user_id = session.get('invited_user_id')
+        return cls.by_id(invited_user_id) if invited_user_id else None
 
     def has_permissions(self, *permissions):
         if self.status == 'cancelled':
@@ -588,13 +618,19 @@ class InvitedOrgUser(JSONModel):
 
     @classmethod
     def from_session(cls):
-        invited_org_user = session.get('invited_org_user')
-        return cls(invited_org_user) if invited_org_user else None
+        invited_org_user_id = session.get('invited_org_user_id')
+        return cls.by_id(invited_org_user_id) if invited_org_user_id else None
 
     @classmethod
     def by_id_and_org_id(cls, org_id, invited_user_id):
         return cls(
-            org_invite_api_client.get_invited_user(org_id, invited_user_id)
+            org_invite_api_client.get_invited_user_for_org(org_id, invited_user_id)
+        )
+
+    @classmethod
+    def by_id(cls, invited_user_id):
+        return cls(
+            org_invite_api_client.get_invited_user(invited_user_id)
         )
 
     def serialize(self, permissions_as_string=False):
@@ -645,6 +681,12 @@ class Users(ModelList):
         for user in self:
             if user.id == id:
                 return user.name
+        # The user may not exist in the list of users for this service if they are
+        # a platform admin or if they have since left the team. In this case, we fall
+        # back to getting the user from the API (or Redis if it is in the cache)
+        user = User.from_id(id)
+        if user and user.name:
+            return user.name
         return 'Unknown'
 
 

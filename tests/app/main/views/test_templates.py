@@ -51,6 +51,7 @@ def test_should_show_empty_page_when_no_templates(
     service_one,
     mock_get_service_templates_when_no_templates_exist,
     mock_get_template_folders,
+    mock_get_no_api_keys,
     permissions,
     expected_message,
 ):
@@ -77,6 +78,7 @@ def test_should_show_add_template_form_if_service_has_folder_permission(
     service_one,
     mock_get_service_templates_when_no_templates_exist,
     mock_get_template_folders,
+    mock_get_no_api_keys,
 ):
     page = client_request.get(
         'main.choose_template',
@@ -164,6 +166,7 @@ def test_should_show_page_for_choosing_a_template(
     mock_get_service_templates,
     mock_get_template_folders,
     mock_has_no_jobs,
+    mock_get_no_api_keys,
     extra_args,
     expected_nav_links,
     expected_templates,
@@ -207,6 +210,7 @@ def test_should_show_page_of_broadcast_templates(
     service_one,
     fake_uuid,
     mock_get_template_folders,
+    mock_get_no_api_keys,
 ):
     service_one['permissions'] += ['broadcast']
     mocker.patch(
@@ -274,6 +278,7 @@ def test_choose_template_can_pass_through_an_initial_state_to_templates_and_fold
     client_request,
     mock_get_template_folders,
     mock_get_service_templates,
+    mock_get_no_api_keys,
 ):
     page = client_request.get(
         'main.choose_template',
@@ -289,6 +294,7 @@ def test_should_not_show_template_nav_if_only_one_type_of_template(
     client_request,
     mock_get_template_folders,
     mock_get_service_templates_with_only_one_template,
+    mock_get_no_api_keys,
 ):
 
     page = client_request.get(
@@ -302,7 +308,9 @@ def test_should_not_show_template_nav_if_only_one_type_of_template(
 def test_should_not_show_live_search_if_list_of_templates_fits_onscreen(
     client_request,
     mock_get_template_folders,
-    mock_get_service_templates
+    mock_get_service_templates,
+    mock_get_more_service_templates_than_can_fit_onscreen,
+    mock_get_no_api_keys,
 ):
 
     page = client_request.get(
@@ -326,15 +334,33 @@ def test_should_show_live_search_if_list_of_templates_taller_than_screen(
     search = page.select_one('.live-search')
 
     assert search['data-module'] == 'live-search'
-    assert search['data-targets'] == '#template-list .template-list-item'
+    assert normalize_spaces(search.select_one('label').text) == (
+        'Search by name'
+    )
 
     assert len(page.select(search['data-targets'])) == len(page.select('#template-list .govuk-label')) == 14
+
+
+def test_should_label_search_by_id_for_services_with_api_keys(
+    client_request,
+    mock_get_template_folders,
+    mock_get_more_service_templates_than_can_fit_onscreen,
+    mock_get_api_keys,
+):
+    page = client_request.get(
+        'main.choose_template',
+        service_id=SERVICE_ONE_ID,
+    )
+    assert normalize_spaces(page.select_one('.live-search label').text) == (
+        'Search by name or ID'
+    )
 
 
 def test_should_show_live_search_if_service_has_lots_of_folders(
     client_request,
     mock_get_template_folders,
     mock_get_service_templates,  # returns 4 templates
+    mock_get_no_api_keys,
 ):
 
     mock_get_template_folders.return_value = [
@@ -388,6 +414,7 @@ def test_should_show_new_template_choices_if_service_has_folder_permission(
     service_one,
     mock_get_service_templates,
     mock_get_template_folders,
+    mock_get_no_api_keys,
     service_permissions,
     expected_values,
     expected_labels,
@@ -425,6 +452,7 @@ def test_should_add_data_attributes_for_services_that_only_allow_one_type_of_not
     service_one,
     mock_get_service_templates,
     mock_get_template_folders,
+    mock_get_no_api_keys,
     permissions,
     are_data_attrs_added
 ):
@@ -552,6 +580,32 @@ def test_caseworker_redirected_to_set_sender_for_one_off(
             _external=True,
         ),
     )
+
+
+@freeze_time('2020-01-01 15:00')
+def test_caseworker_sees_template_page_if_template_is_deleted(
+    client_request,
+    mock_get_deleted_template,
+    fake_uuid,
+    mocker,
+    active_caseworking_user,
+):
+
+    mocker.patch('app.user_api_client.get_user', return_value=active_caseworking_user)
+
+    template_id = fake_uuid
+    page = client_request.get(
+        '.view_template',
+        service_id=SERVICE_ONE_ID,
+        template_id=template_id,
+        _test_page_title=False,
+    )
+
+    content = str(page)
+    assert url_for("main.send_one_off", service_id=SERVICE_ONE_ID, template_id=fake_uuid) not in content
+    assert page.select('p.hint')[0].text.strip() == 'This template was deleted today at 3:00pm.'
+
+    mock_get_deleted_template.assert_called_with(SERVICE_ONE_ID, template_id, None)
 
 
 def test_user_with_only_send_and_view_redirected_to_set_sender_for_one_off(
@@ -993,6 +1047,30 @@ def test_should_let_letter_contact_block_be_changed_for_the_template(
     )['href'] == expected_partial_url(service_id=SERVICE_ONE_ID)
 
 
+@pytest.mark.parametrize('prefix_sms', [
+    True,
+    pytest.param(False, marks=pytest.mark.xfail())
+])
+def test_should_show_message_with_prefix_hint_if_enabled_for_service(
+    client_request,
+    mocker,
+    mock_get_service_template,
+    mock_get_users_by_service,
+    service_one,
+    fake_uuid,
+    prefix_sms
+):
+    service_one['prefix_sms'] = prefix_sms
+
+    page = client_request.get(
+        '.edit_service_template',
+        service_id=service_one['id'],
+        template_id=fake_uuid,
+    )
+
+    assert 'Your message will start with your service name' in page.text
+
+
 def test_should_show_page_template_with_priority_select_if_platform_admin(
     platform_admin_client,
     platform_admin_user,
@@ -1127,6 +1205,7 @@ def test_choose_a_template_to_copy(
     client_request,
     mock_get_service_templates,
     mock_get_template_folders,
+    mock_get_no_api_keys,
     mock_get_just_services_for_user,
 ):
     page = client_request.get(
@@ -1224,6 +1303,7 @@ def test_choose_a_template_to_copy_when_user_has_one_service(
     client_request,
     mock_get_service_templates,
     mock_get_template_folders,
+    mock_get_no_api_keys,
     mock_get_empty_organisations_and_one_service_for_user,
 ):
     page = client_request.get(
@@ -1279,6 +1359,7 @@ def test_choose_a_template_to_copy_from_folder_within_service(
     client_request,
     mock_get_template_folders,
     mock_get_non_empty_organisations_and_services_for_user,
+    mock_get_no_api_keys,
 ):
     mock_get_template_folders.return_value = [
         _folder('Parent folder', PARENT_FOLDER_ID),
@@ -1726,7 +1807,7 @@ def test_should_403_when_edit_template_with_process_type_of_priority_for_non_pla
         service_id=service_one['id'],
         template_id=template_id), data=data)
     assert response.status_code == 403
-    mock_update_service_template.called == 0
+    assert mock_update_service_template.called is False
 
 
 def test_should_403_when_create_template_with_process_type_of_priority_for_non_platform_admin(
@@ -1755,7 +1836,7 @@ def test_should_403_when_create_template_with_process_type_of_priority_for_non_p
         service_id=service_one['id'],
         template_type='sms'), data=data)
     assert response.status_code == 403
-    mock_update_service_template.called == 0
+    assert mock_update_service_template.called is False
 
 
 @pytest.mark.parametrize('old_content, new_content, expected_paragraphs', [
@@ -2135,7 +2216,7 @@ def test_should_show_page_for_a_deleted_template(
 def test_route_permissions(
     route,
     mocker,
-    app_,
+    notify_admin,
     client,
     api_user_active,
     service_one,
@@ -2147,7 +2228,7 @@ def test_route_permissions(
                  return_value='2012-01-01 12:00:00')
     validate_route_permission(
         mocker,
-        app_,
+        notify_admin,
         "GET",
         200,
         url_for(
@@ -2162,17 +2243,18 @@ def test_route_permissions(
 
 def test_route_permissions_for_choose_template(
     mocker,
-    app_,
+    notify_admin,
     client,
     api_user_active,
     mock_get_template_folders,
     service_one,
-    mock_get_service_templates
+    mock_get_service_templates,
+    mock_get_no_api_keys,
 ):
     mocker.patch('app.job_api_client.get_job')
     validate_route_permission(
         mocker,
-        app_,
+        notify_admin,
         "GET",
         200,
         url_for(
@@ -2192,7 +2274,7 @@ def test_route_permissions_for_choose_template(
 def test_route_invalid_permissions(
     route,
     mocker,
-    app_,
+    notify_admin,
     client,
     api_user_active,
     service_one,
@@ -2201,7 +2283,7 @@ def test_route_invalid_permissions(
 ):
     validate_route_permission(
         mocker,
-        app_,
+        notify_admin,
         "GET",
         403,
         url_for(

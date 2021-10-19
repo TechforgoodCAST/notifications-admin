@@ -1,9 +1,7 @@
 from notifications_python_client.errors import HTTPError
 
-from app.models.roles_and_permissions import (
-    translate_permissions_from_admin_roles_to_db,
-)
 from app.notify_client import NotifyAdminAPIClient, cache
+from app.utils.user_permissions import translate_permissions_from_ui_to_db
 
 ALLOWED_ATTRIBUTES = {
     'name',
@@ -11,7 +9,8 @@ ALLOWED_ATTRIBUTES = {
     'mobile_number',
     'auth_type',
     'updated_by',
-    'current_session_id'
+    'current_session_id',
+    'email_access_validated_at',
 }
 
 
@@ -40,7 +39,7 @@ class UserApiClient(NotifyAdminAPIClient):
         return self.get("/user/{}".format(user_id))
 
     def get_user_by_email(self, email_address):
-        user_data = self.get('/user/email', params={'email': email_address})
+        user_data = self.post('/user/email', data={'email': email_address})
         return user_data['data']
 
     def get_user_by_email_or_none(self, email_address):
@@ -75,10 +74,8 @@ class UserApiClient(NotifyAdminAPIClient):
         return user_data['data']
 
     @cache.delete('user-{user_id}')
-    def update_password(self, user_id, password, validated_email_access=False):
+    def update_password(self, user_id, password):
         data = {"_password": password}
-        if validated_email_access:
-            data["validated_email_access"] = validated_email_access
         url = "/user/{}/update-password".format(user_id)
         user_data = self.post(url, data=data)
         return user_data['data']
@@ -125,6 +122,18 @@ class UserApiClient(NotifyAdminAPIClient):
                 return False, e.message
             raise e
 
+    @cache.delete('user-{user_id}')
+    def complete_webauthn_login_attempt(self, user_id, is_successful):
+        data = {'successful': is_successful}
+        endpoint = f'/user/{user_id}/complete/webauthn-login'
+        try:
+            self.post(endpoint, data=data)
+            return True, ''
+        except HTTPError as e:
+            if e.status_code == 403:
+                return False, e.message
+            raise e
+
     def get_users_for_service(self, service_id):
         endpoint = '/service/{}/users'.format(service_id)
         return self.get(endpoint)['data']
@@ -137,10 +146,10 @@ class UserApiClient(NotifyAdminAPIClient):
     @cache.delete('service-{service_id}-template-folders')
     @cache.delete('user-{user_id}')
     def add_user_to_service(self, service_id, user_id, permissions, folder_permissions):
-        # permissions passed in are the combined admin roles, not db permissions
+        # permissions passed in are the combined UI permissions, not DB permissions
         endpoint = '/service/{}/users/{}'.format(service_id, user_id)
         data = {
-            'permissions': [{'permission': x} for x in translate_permissions_from_admin_roles_to_db(permissions)],
+            'permissions': [{'permission': x} for x in translate_permissions_from_ui_to_db(permissions)],
             'folder_permissions': folder_permissions,
         }
 
@@ -154,9 +163,9 @@ class UserApiClient(NotifyAdminAPIClient):
     @cache.delete('service-{service_id}-template-folders')
     @cache.delete('user-{user_id}')
     def set_user_permissions(self, user_id, service_id, permissions, folder_permissions=None):
-        # permissions passed in are the combined admin roles, not db permissions
+        # permissions passed in are the combined UI permissions, not DB permissions
         data = {
-            'permissions': [{'permission': x} for x in translate_permissions_from_admin_roles_to_db(permissions)],
+            'permissions': [{'permission': x} for x in translate_permissions_from_ui_to_db(permissions)],
         }
 
         if folder_permissions is not None:
@@ -190,6 +199,26 @@ class UserApiClient(NotifyAdminAPIClient):
     def get_organisations_and_services_for_user(self, user_id):
         endpoint = '/user/{}/organisations-and-services'.format(user_id)
         return self.get(endpoint)
+
+    def get_webauthn_credentials_for_user(self, user_id):
+        endpoint = f'/user/{user_id}/webauthn'
+
+        return self.get(endpoint)['data']
+
+    def create_webauthn_credential_for_user(self, user_id, credential):
+        endpoint = f'/user/{user_id}/webauthn'
+
+        return self.post(endpoint, data=credential.serialize())
+
+    def update_webauthn_credential_name_for_user(self, *, user_id, credential_id, new_name_for_credential):
+        endpoint = f'/user/{user_id}/webauthn/{credential_id}'
+
+        return self.post(endpoint, data={"name": new_name_for_credential})
+
+    def delete_webauthn_credential_for_user(self, *, user_id, credential_id):
+        endpoint = f'/user/{user_id}/webauthn/{credential_id}'
+
+        return self.delete(endpoint)
 
 
 user_api_client = UserApiClient()

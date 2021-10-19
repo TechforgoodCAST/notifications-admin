@@ -48,6 +48,7 @@ def mock_get_service_settings_page_common(
     mock_get_inbound_number_for_service,
     mock_get_free_sms_fragment_limit,
     mock_get_service_data_retention,
+    mock_get_organisation,
 ):
     return
 
@@ -94,8 +95,8 @@ def mock_get_service_settings_page_common(
         'Label Value Action',
         'Live Off Change service status',
         'Count in list of live services Yes Change if service is counted in list of live services',
-        'Billing details No billing details yet Change billing details for service',
-        'Notes No notes yet Change the notes for the service',
+        'Billing details None Change billing details for service',
+        'Notes None Change the notes for the service',
         'Organisation Test organisation Charity Change organisation for service',
         'Rate limit 3,000 per minute Change rate limit',
         'Message limit 1,000 per day Change daily message limit',
@@ -114,7 +115,6 @@ def test_should_show_overview(
         api_user_active,
         no_reply_to_email_addresses,
         no_letter_contact_blocks,
-        mock_get_organisation,
         single_sms_sender,
         user,
         expected_rows,
@@ -149,7 +149,6 @@ def test_platform_admin_sees_only_relevant_settings_for_broadcast_service(
         api_user_active,
         no_reply_to_email_addresses,
         no_letter_contact_blocks,
-        mock_get_organisation,
         single_sms_sender,
         mock_get_service_settings_page_common,
 ):
@@ -178,7 +177,7 @@ def test_platform_admin_sees_only_relevant_settings_for_broadcast_service(
 
         'Label Value Action',
         'Live Off Change service status',
-        'Notes No notes yet Change the notes for the service',
+        'Notes None Change the notes for the service',
         'Email authentication Off Change your settings for Email authentication',
         'Send cell broadcasts On Change your settings for Send cell broadcasts',
     ]
@@ -220,7 +219,6 @@ def test_organisation_name_links_to_org_dashboard(
     single_sms_sender,
     mock_get_service_settings_page_common,
     mocker,
-    mock_get_organisation,
 ):
     service_one = service_json(SERVICE_ONE_ID,
                                permissions=['sms', 'email'],
@@ -249,7 +247,6 @@ def test_send_files_by_email_row_on_settings_page(
     single_sms_sender,
     mock_get_service_settings_page_common,
     mocker,
-    mock_get_organisation,
     service_contact_link,
     expected_text
 ):
@@ -334,7 +331,6 @@ def test_should_show_overview_for_service_with_more_things_set(
         single_reply_to_email_address,
         single_letter_contact_block,
         single_sms_sender,
-        mock_get_organisation,
         mock_get_email_branding,
         mock_get_service_settings_page_common,
         permissions,
@@ -356,7 +352,6 @@ def test_if_cant_send_letters_then_cant_see_letter_contact_block(
         service_one,
         single_reply_to_email_address,
         no_letter_contact_blocks,
-        mock_get_organisation,
         single_sms_sender,
         mock_get_service_settings_page_common,
 ):
@@ -509,7 +504,6 @@ def test_show_restricted_service(
     service_one,
     single_reply_to_email_address,
     single_letter_contact_block,
-    mock_get_organisation,
     single_sms_sender,
     mock_get_service_settings_page_common,
     user,
@@ -536,12 +530,11 @@ def test_show_restricted_service(
         assert not request_to_live_link
 
 
-def test_show_restricted_broadcast_service(
+def test_broadcast_service_in_training_mode_doesnt_show_trial_mode_content(
     client_request,
     service_one,
     single_reply_to_email_address,
     single_letter_contact_block,
-    mock_get_organisation,
     single_sms_sender,
     mock_get_service_settings_page_common,
 ):
@@ -588,7 +581,6 @@ def test_show_live_service(
     mock_get_live_service,
     single_reply_to_email_address,
     single_letter_contact_block,
-    mock_get_organisation,
     single_sms_sender,
     mock_get_service_settings_page_common,
 ):
@@ -1005,7 +997,7 @@ def test_should_not_show_go_live_button_if_checklist_not_complete(
         assert normalize_spaces(page.select('main p')[1].text) == (
             'By requesting to go live you’re agreeing to our terms of use.'
         )
-        page.select_one('[type=submit]').text.strip() == ('Request to go live')
+        assert page.select_one('main [type=submit]').text.strip() == ('Request to go live')
     else:
         assert not page.select('form')
         assert not page.select('main [type=submit]')
@@ -1570,7 +1562,6 @@ def test_should_redirect_after_request_to_go_live(
         'Request sent by test@user.gov.uk\n'
     ).format(
         service_id=SERVICE_ONE_ID,
-        displayed_volumes=displayed_volumes,
         formatted_displayed_volumes=formatted_displayed_volumes,
     )
 
@@ -1889,13 +1880,12 @@ def test_ready_to_go_live(
 ])
 def test_route_permissions(
         mocker,
-        app_,
+        notify_admin,
         client,
         api_user_active,
         service_one,
         single_reply_to_email_address,
         single_letter_contact_block,
-        mock_get_organisation,
         mock_get_invites_for_service,
         single_sms_sender,
         route,
@@ -1904,7 +1894,7 @@ def test_route_permissions(
 ):
     validate_route_permission(
         mocker,
-        app_,
+        notify_admin,
         "GET",
         200,
         url_for(route, service_id=service_one['id']),
@@ -1926,7 +1916,7 @@ def test_route_permissions(
 ])
 def test_route_invalid_permissions(
         mocker,
-        app_,
+        notify_admin,
         client,
         api_user_active,
         service_one,
@@ -1936,7 +1926,7 @@ def test_route_invalid_permissions(
 ):
     validate_route_permission(
         mocker,
-        app_,
+        notify_admin,
         "GET",
         403,
         url_for(route, service_id=service_one['id']),
@@ -1954,13 +1944,12 @@ def test_route_invalid_permissions(
 ])
 def test_route_for_platform_admin(
         mocker,
-        app_,
+        notify_admin,
         client,
         platform_admin_user,
         service_one,
         single_reply_to_email_address,
         single_letter_contact_block,
-        mock_get_organisation,
         single_sms_sender,
         route,
         mock_get_service_settings_page_common,
@@ -1969,7 +1958,7 @@ def test_route_for_platform_admin(
 ):
     validate_route_permission(
         mocker,
-        app_,
+        notify_admin,
         "GET",
         200,
         url_for(route, service_id=service_one['id']),
@@ -1985,7 +1974,6 @@ def test_and_more_hint_appears_on_settings_with_more_than_just_a_single_sender(
         service_one,
         multiple_reply_to_email_addresses,
         multiple_letter_contact_blocks,
-        mock_get_organisation,
         multiple_sms_senders,
         mock_get_service_settings_page_common,
 ):
@@ -2008,9 +1996,9 @@ def test_and_more_hint_appears_on_settings_with_more_than_just_a_single_sender(
 
 
 @pytest.mark.parametrize('sender_list_page, index, expected_output', [
-    ('main.service_email_reply_to', 0, 'test@example.com (default) Change'),
-    ('main.service_letter_contact_details', 1, '1 Example Street (default) Change'),
-    ('main.service_sms_senders', 0, 'GOVUK (default) Change')
+    ('main.service_email_reply_to', 0, 'test@example.com (default) Change test@example.com'),
+    ('main.service_letter_contact_details', 1, '1 Example Street (default) Change 1 Example Street'),
+    ('main.service_sms_senders', 0, 'GOVUK (default) Change GOVUK')
 ])
 def test_api_ids_dont_show_on_option_pages_with_a_single_sender(
     client_request,
@@ -2045,9 +2033,9 @@ def test_api_ids_dont_show_on_option_pages_with_a_single_sender(
         'app.service_api_client.get_reply_to_email_addresses',
         create_multiple_email_reply_to_addresses(),
         [
-            'test@example.com (default) Change ID: 1234',
-            'test2@example.com Change ID: 5678',
-            'test3@example.com Change ID: 9457',
+            'test@example.com (default) Change test@example.com ID: 1234',
+            'test2@example.com Change test2@example.com ID: 5678',
+            'test3@example.com Change test3@example.com ID: 9457',
         ],
     ), (
         'main.service_letter_contact_details',
@@ -2055,18 +2043,18 @@ def test_api_ids_dont_show_on_option_pages_with_a_single_sender(
         create_multiple_letter_contact_blocks(),
         [
             'Blank Make default',
-            '1 Example Street (default) Change ID: 1234',
-            '2 Example Street Change ID: 5678',
-            'foo<bar>baz Change ID: 9457',
+            '1 Example Street (default) Change 1 Example Street ID: 1234',
+            '2 Example Street Change 2 Example Street ID: 5678',
+            'foo<bar>baz Change foo <bar> baz ID: 9457',
         ],
     ), (
         'main.service_sms_senders',
         'app.service_api_client.get_sms_senders',
         create_multiple_sms_senders(),
         [
-            'Example (default and receives replies) Change ID: 1234',
-            'Example 2 Change ID: 5678',
-            'Example 3 Change ID: 9457',
+            'Example (default and receives replies) Change Example ID: 1234',
+            'Example 2 Change Example 2 ID: 5678',
+            'Example 3 Change Example 3 ID: 9457',
         ],
     ),
     ]
@@ -2263,6 +2251,39 @@ def test_add_reply_to_email_address_sends_test_notification(
         ) + "?is_default={}".format(api_default_args)
     )
     mock_verify.assert_called_once_with(SERVICE_ONE_ID, "test@example.com")
+
+
+def test_service_add_reply_to_email_address_without_verification_for_platform_admin(
+    mocker,
+    client_request,
+    platform_admin_user
+):
+    client_request.login(platform_admin_user)
+
+    mock_update = mocker.patch(
+        'app.service_api_client.add_reply_to_email_address'
+    )
+    mocker.patch(
+        'app.service_api_client.get_reply_to_email_addresses',
+        return_value=[create_reply_to_email_address(is_default=True)]
+    )
+    data = {"is_default": "y", "email_address": "test@example.gov.uk"}
+
+    client_request.post(
+        'main.service_add_email_reply_to',
+        service_id=SERVICE_ONE_ID,
+        _data=data,
+        _expected_status=302,
+        _expected_redirect=url_for(
+            'main.service_email_reply_to',
+            service_id=SERVICE_ONE_ID,
+            _external=True,
+        )
+    )
+    mock_update.assert_called_once_with(
+        SERVICE_ONE_ID,
+        email_address='test@example.gov.uk',
+        is_default=True)
 
 
 @pytest.mark.parametrize("is_default,replace,expected_header", [(True, "&replace=123", "Change"), (False, "", "Add")])
@@ -2529,6 +2550,42 @@ def test_edit_reply_to_email_address_sends_verification_notification_if_address_
         _data=data
     )
     mock_verify.assert_called_once_with(SERVICE_ONE_ID, "test@example.gov.uk")
+
+
+def test_service_edit_email_reply_to_updates_email_address_without_verification_for_platform_admin(
+    mocker,
+    fake_uuid,
+    client_request,
+    platform_admin_user
+):
+    client_request.login(platform_admin_user)
+
+    mock_update = mocker.patch(
+        'app.service_api_client.update_reply_to_email_address'
+    )
+    mocker.patch(
+        'app.service_api_client.get_reply_to_email_address',
+        return_value=create_reply_to_email_address(is_default=True)
+    )
+    data = {"is_default": "y", "email_address": "test@example.gov.uk"}
+
+    client_request.post(
+        'main.service_edit_email_reply_to',
+        service_id=SERVICE_ONE_ID,
+        reply_to_email_id=fake_uuid,
+        _data=data,
+        _expected_status=302,
+        _expected_redirect=url_for(
+            'main.service_email_reply_to',
+            service_id=SERVICE_ONE_ID,
+            _external=True,
+        )
+    )
+    mock_update.assert_called_once_with(
+        SERVICE_ONE_ID,
+        reply_to_email_id=fake_uuid,
+        email_address='test@example.gov.uk',
+        is_default=True)
 
 
 @pytest.mark.parametrize('reply_to_address, data, api_default_args', [
@@ -3043,7 +3100,6 @@ def test_does_not_show_research_mode_indicator(
     client_request,
     single_reply_to_email_address,
     single_letter_contact_block,
-    mock_get_organisation,
     single_sms_sender,
     mock_get_service_settings_page_common,
 ):
@@ -3841,10 +3897,12 @@ def test_switch_service_enable_international_sms_and_letters(
     assert mocked_fn.call_args[0][0] == service_one['id']
 
 
-@pytest.mark.parametrize('user', (
-    create_platform_admin_user(),
-    create_active_user_with_permissions(),
-    pytest.param(create_active_user_no_settings_permission(), marks=pytest.mark.xfail),
+@pytest.mark.parametrize('user, is_trial_service', (
+    [create_platform_admin_user(), True],
+    [create_platform_admin_user(), False],
+    [create_active_user_with_permissions(), True],
+    pytest.param(create_active_user_with_permissions(), False, marks=pytest.mark.xfail),
+    pytest.param(create_active_user_no_settings_permission(), True, marks=pytest.mark.xfail),
 ))
 def test_archive_service_after_confirm(
     client_request,
@@ -3854,9 +3912,14 @@ def test_archive_service_after_confirm(
     mock_get_organisations_and_services_for_user,
     mock_get_users_by_service,
     mock_get_service_templates,
+    service_one,
     user,
+    is_trial_service,
 ):
-    mocked_fn = mocker.patch('app.service_api_client.post')
+    service_one['restricted'] = is_trial_service
+    mock_api = mocker.patch('app.service_api_client.post')
+    mock_event = mocker.patch('app.main.views.service_settings.create_archive_service_event')
+
     redis_delete_mock = mocker.patch('app.notify_client.service_api_client.redis_client.delete')
     mocker.patch('app.notify_client.service_api_client.redis_client.delete_cache_keys_by_pattern')
     client_request.login(user)
@@ -3866,7 +3929,9 @@ def test_archive_service_after_confirm(
         _follow_redirects=True,
     )
 
-    mocked_fn.assert_called_once_with('/service/{}/archive'.format(SERVICE_ONE_ID), data=None)
+    mock_api.assert_called_once_with('/service/{}/archive'.format(SERVICE_ONE_ID), data=None)
+    mock_event.assert_called_once_with(service_id=SERVICE_ONE_ID, archived_by_id=user['id'])
+
     assert normalize_spaces(page.select_one('h1').text) == 'Choose service'
     assert normalize_spaces(page.select_one('.banner-default-with-tick').text) == (
         '‘service one’ was deleted'
@@ -3875,22 +3940,26 @@ def test_archive_service_after_confirm(
     assert call(f"user-{sample_uuid()}") in redis_delete_mock.call_args_list
 
 
-@pytest.mark.parametrize('user', (
-    create_platform_admin_user(),
-    create_active_user_with_permissions(),
-    pytest.param(create_active_user_no_settings_permission(), marks=pytest.mark.xfail),
+@pytest.mark.parametrize('user, is_trial_service', (
+    [create_platform_admin_user(), True],
+    [create_platform_admin_user(), False],
+    [create_active_user_with_permissions(), True],
+    pytest.param(create_active_user_with_permissions(), False, marks=pytest.mark.xfail),
+    pytest.param(create_active_user_no_settings_permission(), True, marks=pytest.mark.xfail),
 ))
 def test_archive_service_prompts_user(
     client_request,
     mocker,
     single_reply_to_email_address,
     single_letter_contact_block,
-    mock_get_organisation,
+    service_one,
     single_sms_sender,
     mock_get_service_settings_page_common,
     user,
+    is_trial_service,
 ):
-    mocked_fn = mocker.patch('app.service_api_client.post')
+    mock_api = mocker.patch('app.service_api_client.post')
+    service_one['restricted'] = is_trial_service
     client_request.login(user)
 
     settings_page = client_request.get(
@@ -3913,7 +3982,7 @@ def test_archive_service_prompts_user(
         'There’s no way to undo this. '
         'Yes, delete'
     )
-    assert mocked_fn.called is False
+    assert mock_api.called is False
 
 
 def test_cant_archive_inactive_service(
@@ -3921,7 +3990,6 @@ def test_cant_archive_inactive_service(
     service_one,
     single_reply_to_email_address,
     single_letter_contact_block,
-    mock_get_organisation,
     single_sms_sender,
     mock_get_service_settings_page_common
 ):
@@ -3934,40 +4002,55 @@ def test_cant_archive_inactive_service(
     assert 'Delete service' not in {a.text for a in page.find_all('a', class_='button')}
 
 
+@pytest.mark.parametrize('user', (
+    create_platform_admin_user(),
+    pytest.param(create_active_user_with_permissions(), marks=pytest.mark.xfail),
+))
 def test_suspend_service_after_confirm(
-    platform_admin_client,
-    service_one,
+    client_request,
+    user,
     mocker,
-    mock_get_inbound_number_for_service,
 ):
-    mocked_fn = mocker.patch('app.service_api_client.post', return_value=service_one)
+    mock_api = mocker.patch('app.service_api_client.post')
+    mock_event = mocker.patch('app.main.views.service_settings.create_suspend_service_event')
 
-    response = platform_admin_client.post(url_for('main.suspend_service', service_id=service_one['id']))
+    client_request.login(user)
+    client_request.post(
+        'main.suspend_service',
+        service_id=SERVICE_ONE_ID,
+        _expected_redirect=url_for(
+            'main.service_settings',
+            service_id=SERVICE_ONE_ID,
+            _external=True
+        ),
+    )
 
-    assert response.status_code == 302
-    assert response.location == url_for('main.service_settings', service_id=service_one['id'], _external=True)
-    assert mocked_fn.call_args == call('/service/{}/suspend'.format(service_one['id']), data=None)
+    mock_api.assert_called_once_with('/service/{}/suspend'.format(SERVICE_ONE_ID), data=None)
+    mock_event.assert_called_once_with(service_id=SERVICE_ONE_ID, suspended_by_id=user['id'])
 
 
+@pytest.mark.parametrize('user', (
+    create_platform_admin_user(),
+    pytest.param(create_active_user_with_permissions(), marks=pytest.mark.xfail),
+))
 def test_suspend_service_prompts_user(
-    platform_admin_client,
+    client_request,
+    user,
     service_one,
     mocker,
     single_reply_to_email_address,
     single_letter_contact_block,
-    mock_get_organisation,
     single_sms_sender,
     mock_get_service_settings_page_common,
 ):
-    mocked_fn = mocker.patch('app.service_api_client.post')
+    mock_api = mocker.patch('app.service_api_client.post')
 
-    response = platform_admin_client.get(url_for('main.suspend_service', service_id=service_one['id']))
+    client_request.login(user)
+    page = client_request.get('main.suspend_service', service_id=service_one['id'])
 
-    assert response.status_code == 200
-    page = BeautifulSoup(response.data.decode('utf-8'), 'html.parser')
     assert 'This will suspend the service and revoke all api keys. Are you sure you want to suspend this service?' in \
            page.find('div', class_='banner-dangerous').text
-    assert mocked_fn.called is False
+    assert mock_api.called is False
 
 
 def test_cant_suspend_inactive_service(
@@ -3975,7 +4058,6 @@ def test_cant_suspend_inactive_service(
     service_one,
     single_reply_to_email_address,
     single_letter_contact_block,
-    mock_get_organisation,
     single_sms_sender,
     mock_get_service_settings_page_common,
 ):
@@ -3988,45 +4070,58 @@ def test_cant_suspend_inactive_service(
     assert 'Suspend service' not in {a.text for a in page.find_all('a', class_='button')}
 
 
+@pytest.mark.parametrize('user', (
+    create_platform_admin_user(),
+    pytest.param(create_active_user_with_permissions(), marks=pytest.mark.xfail),
+))
 def test_resume_service_after_confirm(
-    platform_admin_client,
-    service_one,
-    single_reply_to_email_address,
-    single_letter_contact_block,
-    mock_get_organisation,
     mocker,
-    mock_get_inbound_number_for_service,
+    user,
+    service_one,
+    client_request,
 ):
     service_one['active'] = False
-    mocked_fn = mocker.patch('app.service_api_client.post', return_value=service_one)
+    mock_api = mocker.patch('app.service_api_client.post')
+    mock_event = mocker.patch('app.main.views.service_settings.create_resume_service_event')
 
-    response = platform_admin_client.post(url_for('main.resume_service', service_id=service_one['id']))
+    client_request.login(user)
+    client_request.post(
+        'main.resume_service',
+        service_id=SERVICE_ONE_ID,
+        _expected_redirect=url_for(
+            'main.service_settings',
+            service_id=SERVICE_ONE_ID,
+            _external=True
+        )
+    )
 
-    assert response.status_code == 302
-    assert response.location == url_for('main.service_settings', service_id=service_one['id'], _external=True)
-    assert mocked_fn.call_args == call('/service/{}/resume'.format(service_one['id']), data=None)
+    assert mock_api.called_once_with('/service/{}/resume'.format(SERVICE_ONE_ID), data=None)
+    assert mock_event.called_once_with(service_id=SERVICE_ONE_ID, resumed_by_id=user['id'])
 
 
+@pytest.mark.parametrize('user', (
+    create_platform_admin_user(),
+    pytest.param(create_active_user_with_permissions(), marks=pytest.mark.xfail),
+))
 def test_resume_service_prompts_user(
-    platform_admin_client,
+    client_request,
+    user,
     service_one,
     single_reply_to_email_address,
     single_letter_contact_block,
-    mock_get_organisation,
     single_sms_sender,
     mocker,
     mock_get_service_settings_page_common,
 ):
     service_one['active'] = False
-    mocked_fn = mocker.patch('app.service_api_client.post')
+    mock_api = mocker.patch('app.service_api_client.post')
 
-    response = platform_admin_client.get(url_for('main.resume_service', service_id=service_one['id']))
+    client_request.login(user)
+    page = client_request.get('main.resume_service', service_id=service_one['id'])
 
-    assert response.status_code == 200
-    page = BeautifulSoup(response.data.decode('utf-8'), 'html.parser')
     assert 'This will resume the service. New api key are required for this service to use the API.' in \
            page.find('div', class_='banner-dangerous').text
-    assert mocked_fn.called is False
+    assert mock_api.called is False
 
 
 def test_cant_resume_active_service(
@@ -4034,7 +4129,6 @@ def test_cant_resume_active_service(
     service_one,
     single_reply_to_email_address,
     single_letter_contact_block,
-    mock_get_organisation,
     single_sms_sender,
     mock_get_service_settings_page_common
 ):
@@ -4075,7 +4169,6 @@ def test_send_files_by_email_contact_details_updates_contact_details_and_redirec
     service_one,
     mock_update_service,
     mock_get_service_settings_page_common,
-    mock_get_organisation,
     no_reply_to_email_addresses,
     no_letter_contact_blocks,
     single_sms_sender,
@@ -4103,7 +4196,6 @@ def test_send_files_by_email_contact_details_uses_the_selected_field_when_multip
     service_one,
     mock_update_service,
     mock_get_service_settings_page_common,
-    mock_get_organisation,
     no_reply_to_email_addresses,
     no_letter_contact_blocks,
     single_sms_sender,
@@ -4191,22 +4283,6 @@ def test_send_files_by_email_contact_details_does_not_update_invalid_contact_det
 
     assert error in page.find('span', class_='govuk-error-message').text
     assert normalize_spaces(page.h1.text) == "Send files by email"
-
-
-def test_contact_link_is_not_displayed_without_the_upload_document_permission(
-    client_request,
-    service_one,
-    mock_get_service_settings_page_common,
-    mock_get_organisation,
-    no_reply_to_email_addresses,
-    no_letter_contact_blocks,
-    single_sms_sender,
-):
-    page = client_request.get(
-        'main.service_settings',
-        service_id=SERVICE_ONE_ID,
-    )
-    assert 'Contact details' not in page.text
 
 
 @pytest.mark.parametrize('endpoint, permissions, expected_p', [
@@ -4440,13 +4516,15 @@ def test_update_service_organisation_does_not_update_if_same_value(
     mock_get_organisations,
     mock_update_service_organisation,
 ):
+    org_id = "7aa5d4e9-4385-4488-a489-07812ba13383"
+    service_one['organisation'] = org_id
     response = platform_admin_client.post(
         url_for('.link_service_to_organisation', service_id=service_one['id']),
-        data={'organisations': '7aa5d4e9-4385-4488-a489-07812ba13383'},
+        data={'organisations': org_id},
     )
 
     assert response.status_code == 302
-    mock_update_service_organisation.called is False
+    assert mock_update_service_organisation.called is False
 
 
 @pytest.mark.parametrize('branding_type', ['email', 'letter'])
@@ -5000,9 +5078,7 @@ def test_service_settings_links_to_branding_request_page_for_letters(
     no_letter_contact_blocks,
     single_sms_sender,
     mock_get_service_settings_page_common,
-    mock_get_organisation,
 ):
-    service_one["restricted"] is False
     service_one['permissions'].append('letter')
     page = client_request.get(
         '.service_settings', service_id=SERVICE_ONE_ID
@@ -5125,7 +5201,6 @@ def test_service_settings_links_to_edit_service_notes_page_for_platform_admins(
     no_letter_contact_blocks,
     single_sms_sender,
     mock_get_service_settings_page_common,
-    mock_get_organisation,
 ):
     response = platform_admin_client.get(url_for(
         '.service_settings', service_id=SERVICE_ONE_ID
@@ -5173,7 +5248,6 @@ def test_service_settings_links_to_edit_service_billing_details_page_for_platfor
     no_letter_contact_blocks,
     single_sms_sender,
     mock_get_service_settings_page_common,
-    mock_get_organisation,
 ):
     response = platform_admin_client.get(url_for(
         '.service_settings', service_id=SERVICE_ONE_ID

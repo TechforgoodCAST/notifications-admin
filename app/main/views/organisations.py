@@ -19,7 +19,9 @@ from app.main import main
 from app.main.forms import (
     AddGPOrganisationForm,
     AddNHSLocalOrganisationForm,
+    BillingDetailsForm,
     ConfirmPasswordForm,
+    EditNotesForm,
     GoLiveNotesForm,
     InviteOrgUserForm,
     NewOrganisationForm,
@@ -40,7 +42,7 @@ from app.main.views.dashboard import (
 from app.main.views.service_settings import get_branding_as_value_and_label
 from app.models.organisation import Organisation, Organisations
 from app.models.user import InvitedOrgUser, User
-from app.utils import user_has_permissions, user_is_platform_admin
+from app.utils.user import user_has_permissions, user_is_platform_admin
 
 
 @main.route("/organisations", methods=['GET'])
@@ -59,10 +61,17 @@ def add_organisation():
     form = NewOrganisationForm()
 
     if form.validate_on_submit():
-        return redirect(url_for(
-            '.organisation_settings',
-            org_id=Organisation.create_from_form(form).id,
-        ))
+        try:
+            return redirect(url_for(
+                '.organisation_settings',
+                org_id=Organisation.create_from_form(form).id,
+            ))
+        except HTTPError as e:
+            msg = 'Organisation name already exists'
+            if e.status_code == 400 and msg in e.message:
+                form.name.errors.append("This organisation name is already in use")
+            else:
+                raise e
 
     return render_template(
         'views/organisations/add-organisation.html',
@@ -174,7 +183,7 @@ def manage_org_users(org_id):
 @user_has_permissions()
 def invite_org_user(org_id):
     form = InviteOrgUserForm(
-        invalid_email_address=current_user.email_address
+        inviter_email_address=current_user.email_address
     )
     if form.validate_on_submit():
         email_address = form.email_address.data
@@ -499,5 +508,53 @@ def edit_organisation_go_live_notes(org_id):
 
     return render_template(
         'views/organisations/organisation/settings/edit-go-live-notes.html',
+        form=form,
+    )
+
+
+@main.route("/organisations/<uuid:org_id>/settings/notes", methods=['GET', 'POST'])
+@user_is_platform_admin
+def edit_organisation_notes(org_id):
+    form = EditNotesForm(notes=current_organisation.notes)
+
+    if form.validate_on_submit():
+
+        if form.notes.data == current_organisation.notes:
+            return redirect(url_for('.organisation_settings', org_id=org_id))
+
+        current_organisation.update(
+            notes=form.notes.data
+        )
+        return redirect(url_for('.organisation_settings', org_id=org_id))
+
+    return render_template(
+        'views/organisations/organisation/settings/edit-organisation-notes.html',
+        form=form,
+    )
+
+
+@main.route("/organisations/<uuid:org_id>/settings/edit-billing-details", methods=['GET', 'POST'])
+@user_is_platform_admin
+def edit_organisation_billing_details(org_id):
+    form = BillingDetailsForm(
+        billing_contact_email_addresses=current_organisation.billing_contact_email_addresses,
+        billing_contact_names=current_organisation.billing_contact_names,
+        billing_reference=current_organisation.billing_reference,
+        purchase_order_number=current_organisation.purchase_order_number,
+        notes=current_organisation.notes,
+    )
+
+    if form.validate_on_submit():
+        current_organisation.update(
+            billing_contact_email_addresses=form.billing_contact_email_addresses.data,
+            billing_contact_names=form.billing_contact_names.data,
+            billing_reference=form.billing_reference.data,
+            purchase_order_number=form.purchase_order_number.data,
+            notes=form.notes.data,
+        )
+        return redirect(url_for('.organisation_settings', org_id=org_id))
+
+    return render_template(
+        'views/organisations/organisation/settings/edit-organisation-billing-details.html',
         form=form,
     )

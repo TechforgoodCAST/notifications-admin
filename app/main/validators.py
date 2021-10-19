@@ -12,7 +12,7 @@ from wtforms import ValidationError
 
 from app.main._commonly_used_passwords import commonly_used_passwords
 from app.models.spreadsheet import Spreadsheet
-from app.utils import is_gov_user
+from app.utils.user import is_gov_user
 
 
 class SenderBlocklistValidator:
@@ -158,9 +158,9 @@ class BroadcastLength:
             )
 
 
-class LettersNumbersFullStopsAndUnderscoresOnly:
+class LettersNumbersSingleQuotesFullStopsAndUnderscoresOnly:
 
-    regex = re.compile(r'^[a-zA-Z0-9\s\._]+$')
+    regex = re.compile(r"^[a-zA-Z0-9\s\._']+$")
 
     def __init__(self, message='Use letters and numbers only'):
         self.message = message

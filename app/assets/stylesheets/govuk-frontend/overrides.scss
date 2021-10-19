@@ -54,6 +54,12 @@
   @include govuk-grid-column(full, $class: false);
 }
 
+// Add override from future version of GOV.UK Frontend
+// Todo: remove this once we’ve upgraded past v3.11.0
+.govuk-\!-display-none {
+  display: none !important;
+}
+
 .govuk-button {
   
   &,

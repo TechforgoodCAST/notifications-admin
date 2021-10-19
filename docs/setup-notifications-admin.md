@@ -24,9 +24,9 @@ source env/bin/activate
 The notifications-admin application uses the node package manager (`npm`) to install and update front-end dependencies. To gain access to `npm` we must install `Node.js`. Please visit the [official Node.js download page](https://nodejs.org/en/download/) to download and install `Node.js` for your operating system.
 
 ## Bootstrapping the `notifications-admin` application for local development
-Next, we can run the one-off `scripts/bootstrap.sh` script, configuring our local development environment with minimal fuss and effort.
+Next, we can install dependencies, configuring our local development environment with minimal fuss and effort.
 ```
-scripts/bootstrap.sh
+make bootstrap
 ```
 
 ## How to run the application
@@ -35,10 +35,10 @@ Once you've completed the steps above, you're ready to run the admin app locally
 
 Since the `notifications-admin` app is a front-end to the `notifications-api` app, you'll need to have the `notifications-api` app running in another terminal window.  
 
-Once `notifications-api` is running and listening on port 6011, we can start `notifications-admin` on port 6012 using a helpful `run_app.sh` script.
+Once `notifications-api` is running and listening on port 6011, we can start `notifications-admin` on port 6012 using this command.
 
 ```
-scripts/run_app.sh
+make run-flask
 ```
 
 You should be able to view the `notifications-admin` app on http://localhost:6012

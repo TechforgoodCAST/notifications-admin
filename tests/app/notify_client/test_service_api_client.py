@@ -37,21 +37,15 @@ def test_client_gets_service(mocker):
     mock_get.assert_called_once_with('/service/foo')
 
 
-@pytest.mark.parametrize('today_only, limit_days', [
-    (True, None),
-    (False, None),
-    (False, 30),
-])
-def test_client_gets_service_statistics(mocker, today_only, limit_days):
+@pytest.mark.parametrize('limit_days', [None, 30])
+def test_client_gets_service_statistics(mocker, limit_days):
     client = ServiceAPIClient()
     mock_get = mocker.patch.object(client, 'get', return_value={'data': {'a': 'b'}})
 
-    ret = client.get_service_statistics('foo', today_only, limit_days)
+    ret = client.get_service_statistics('foo', limit_days)
 
     assert ret == {'a': 'b'}
-    mock_get.assert_called_once_with('/service/foo/statistics', params={
-        'today_only': today_only, 'limit_days': limit_days
-    })
+    mock_get.assert_called_once_with('/service/foo/statistics', params={'limit_days': limit_days})
 
 
 def test_client_only_updates_allowed_attributes(mocker):
@@ -143,7 +137,7 @@ def test_get_precompiled_template(mocker):
     ),
 ))
 def test_client_returns_count_of_service_templates(
-    app_,
+    notify_admin,
     mocker,
     template_data,
     extra_args,
@@ -416,7 +410,7 @@ def test_returns_value_from_cache(
     (invite_api_client, 'accept_invite', [SERVICE_ONE_ID, uuid4()], {}),
 ])
 def test_deletes_service_cache(
-    app_,
+    notify_admin,
     mock_get_user,
     mock_get_service_templates,
     mocker,
@@ -465,7 +459,7 @@ def test_deletes_service_cache(
     ]),
 ])
 def test_deletes_caches_when_modifying_templates(
-    app_,
+    notify_admin,
     mock_get_user,
     mocker,
     method,
@@ -524,7 +518,7 @@ def test_client_updates_guest_list(mocker):
 
 
 def test_client_doesnt_delete_service_template_cache_when_none_exist(
-    app_,
+    notify_admin,
     mock_get_user,
     mock_get_service_templates_when_no_templates_exist,
     mocker
@@ -543,7 +537,7 @@ def test_client_doesnt_delete_service_template_cache_when_none_exist(
 
 
 def test_client_deletes_service_template_cache_when_service_is_updated(
-    app_,
+    notify_admin,
     mock_get_user,
     mocker
 ):

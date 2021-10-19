@@ -31,13 +31,14 @@ from werkzeug.exceptions import HTTPException as WerkzeugHTTPException
 from werkzeug.exceptions import abort
 from werkzeug.local import LocalProxy
 
-from app import proxy_fix
+from app import proxy_fix, webauthn_server
 from app.asset_fingerprinter import asset_fingerprinter
 from app.commands import setup_commands
 from app.config import configs
 from app.extensions import antivirus_client, redis_client, zendesk_client
 from app.formatters import (
     convert_to_boolean,
+    format_billions,
     format_date,
     format_date_human,
     format_date_normal,
@@ -100,6 +101,9 @@ from app.notify_client.letter_jobs_client import letter_jobs_client
 from app.notify_client.notification_api_client import notification_api_client
 from app.notify_client.org_invite_api_client import org_invite_api_client
 from app.notify_client.organisations_api_client import organisations_client
+from app.notify_client.performance_dashboard_api_client import (
+    performance_dashboard_api_client,
+)
 from app.notify_client.platform_stats_api_client import (
     platform_stats_api_client,
 )
@@ -186,6 +190,7 @@ def create_app(application):
         notification_api_client,
         org_invite_api_client,
         organisations_client,
+        performance_dashboard_api_client,
         platform_stats_api_client,
         provider_client,
         service_api_client,
@@ -204,6 +209,7 @@ def create_app(application):
         client.init_app(application)
 
     logging.init_app(application)
+    webauthn_server.init_app(application)
 
     login_manager.login_view = 'main.sign_in'
     login_manager.login_message_category = 'default'
@@ -502,11 +508,9 @@ def setup_blueprints(application):
     updated, including the expiration date. If you have a dashboard open and in focus it'll refresh the expiration timer
     every two seconds, and you will never log out, which is behaviour we want to preserve.
     """
+    from app.main import main as main_blueprint
+    from app.main import no_cookie as no_cookie_blueprint
     from app.status import status as status_blueprint
-    from app.main import (
-        main as main_blueprint,
-        no_cookie as no_cookie_blueprint
-    )
 
     main_blueprint.before_request(make_session_permanent)
     main_blueprint.after_request(save_service_or_org_after_request)
@@ -519,6 +523,7 @@ def setup_blueprints(application):
 
 def setup_event_handlers():
     from flask_login import user_logged_in
+
     from app.event_handlers import on_user_logged_in
 
     user_logged_in.connect(on_user_logged_in)
@@ -526,6 +531,7 @@ def setup_event_handlers():
 
 def add_template_filters(application):
     for fn in [
+        format_billions,
         format_datetime,
         format_datetime_24h,
         format_datetime_normal,

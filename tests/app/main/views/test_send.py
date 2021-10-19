@@ -734,7 +734,7 @@ def test_upload_csv_file_with_bad_postal_address_shows_check_page_with_errors(
         '6 Address must be no more than 7 lines long',
         '1 2 3 4 5 6 7 8',
 
-        '7 Address lines must not start with any of the following characters: @ ( ) = [ ] ” \\ / , < >',
+        '7 Address lines must not start with any of the following characters: @ ( ) = [ ] ” \\ / , < > ~',
         '=Firstname Lastname 123 Example St. SW1A 1AA',
     ]
 
@@ -2370,7 +2370,7 @@ def test_send_one_off_letter_address_populates_address_fields_in_session(
     (
         'a\n(b\nSW1A 1AA',
         [],
-        'Address lines must not start with any of the following characters: @ ( ) = [ ] ” \\ / , < >',
+        'Address lines must not start with any of the following characters: @ ( ) = [ ] ” \\ / , < > ~',
     ),
 ])
 def test_send_one_off_letter_address_rejects_bad_addresses(
@@ -2453,7 +2453,6 @@ def test_upload_csvfile_with_valid_phone_shows_all_numbers(
     logged_in_client,
     mock_get_service_template,
     mock_get_users_by_service,
-    mock_get_service_statistics,
     mock_get_live_service,
     mock_get_job_doesnt_exist,
     mock_get_jobs,
@@ -2472,6 +2471,7 @@ def test_upload_csvfile_with_valid_phone_shows_all_numbers(
         ])
     )
 
+    mock_get_notification_count = mocker.patch('app.service_api_client.get_notification_count', return_value=0)
     response = logged_in_client.post(
         url_for('main.send_messages', service_id=service_one['id'], template_id=fake_uuid),
         data={'file': (BytesIO(''.encode('utf-8')), 'example.csv')},
@@ -2503,7 +2503,7 @@ def test_upload_csvfile_with_valid_phone_shows_all_numbers(
     assert '07700 900750' not in content
     assert 'Only showing the first 50 rows' in content
 
-    mock_get_service_statistics.assert_called_once_with(service_one['id'], today_only=True)
+    mock_get_notification_count.assert_called_once_with(service_one['id'])
 
 
 @pytest.mark.parametrize('international_sms_permission, should_allow_international', [
@@ -2880,7 +2880,7 @@ def test_dont_show_preview_letter_templates_for_bad_filetype(
 ])
 def test_route_permissions(
     mocker,
-    app_,
+    notify_admin,
     client,
     api_user_active,
     service_one,
@@ -2896,7 +2896,7 @@ def test_route_permissions(
 ):
     validate_route_permission(
         mocker,
-        app_,
+        notify_admin,
         "GET",
         response_code,
         url_for(
@@ -2915,7 +2915,7 @@ def test_route_permissions(
 ])
 def test_route_permissions_send_check_notifications(
     mocker,
-    app_,
+    notify_admin,
     client,
     api_user_active,
     service_one,
@@ -2952,7 +2952,7 @@ def test_route_permissions_send_check_notifications(
 ])
 def test_route_permissions_sending(
     mocker,
-    app_,
+    notify_admin,
     client,
     api_user_active,
     service_one,
@@ -2967,7 +2967,7 @@ def test_route_permissions_sending(
 ):
     validate_route_permission(
         mocker,
-        app_,
+        notify_admin,
         "GET",
         expected_status,
         url_for(
@@ -3101,9 +3101,10 @@ def test_go_to_dashboard_after_tour_link(
 
 
 @pytest.mark.parametrize('num_requested,expected_msg', [
-    (0, '‘example.csv’ contains 1,234 phone numbers.'),
-    (1, 'You can still send 49 messages today, but ‘example.csv’ contains 1,234 phone numbers.')
-], ids=['none_sent', 'some_sent'])
+    (None, '‘example.csv’ contains 1,234 phone numbers.'),
+    ("0", '‘example.csv’ contains 1,234 phone numbers.'),
+    ("1", 'You can still send 49 messages today, but ‘example.csv’ contains 1,234 phone numbers.')
+], ids=['none_sent', 'none_sent', 'some_sent'])
 def test_check_messages_shows_too_many_messages_errors(
     mocker,
     client_request,
@@ -3121,10 +3122,7 @@ def test_check_messages_shows_too_many_messages_errors(
     mocker.patch('app.main.views.send.s3download', return_value=',\n'.join(
         ['phone number'] + ([mock_get_users_by_service(None)[0]['mobile_number']] * 1234)
     ))
-    mocker.patch('app.service_api_client.get_service_statistics', return_value={
-        'sms': {'requested': num_requested, 'delivered': 0, 'failed': 0},
-        'email': {'requested': 0, 'delivered': 0, 'failed': 0}
-    })
+    mocker.patch('app.extensions.redis_client.get', return_value=num_requested)
 
     with client_request.session_transaction() as session:
         session['file_uploads'] = {
@@ -3493,6 +3491,53 @@ def test_check_messages_adds_sender_id_in_session_to_metadata(
     )
 
 
+def test_check_messages_does_not_add_sender_id_in_session_to_metadata_for_letter_template(
+    client_request,
+    mocker,
+    mock_get_live_service,
+    mock_get_service_letter_template,
+    mock_get_users_by_service,
+    mock_get_service_statistics,
+    mock_get_job_doesnt_exist,
+    mock_get_jobs,
+    mock_s3_get_metadata,
+    mock_s3_set_metadata,
+    fake_uuid,
+):
+    mocker.patch('app.main.views.send.s3download', return_value="""
+            address_line_1,address_line_2,postcode,
+            First Last,    123 Street,    SW1 1AA
+        """)
+
+    mocker.patch(
+        'app.main.views.send.get_page_count_for_letter',
+        return_value=5,
+    )
+
+    with client_request.session_transaction() as session:
+        session['file_uploads'] = {
+            fake_uuid: {'template_id': fake_uuid}
+        }
+        session['sender_id'] = 'fake-sender'
+
+    client_request.get(
+        'main.check_messages',
+        service_id=SERVICE_ONE_ID,
+        template_id=fake_uuid,
+        upload_id=fake_uuid,
+        _test_page_title=False,
+    )
+
+    mock_s3_set_metadata.assert_called_once_with(
+        SERVICE_ONE_ID,
+        fake_uuid,
+        notification_count=1,
+        template_id=fake_uuid,
+        valid=True,
+        original_file_name='example.csv',
+    )
+
+
 @pytest.mark.parametrize('extra_args', (
     {},
     {'from_test': True},
@@ -3807,7 +3852,7 @@ def test_check_notification_shows_back_link(
             name="Awkward letter",
             type_="letter",
             subject="We need to talk about ((thing))",
-            content=f"Hello ((address line 3))",
+            content="Hello ((address line 3))",
         )},
     )
     with client_request.session_transaction() as session:

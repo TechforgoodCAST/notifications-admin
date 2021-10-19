@@ -190,7 +190,7 @@ def test_should_show_job_in_progress(
         normalize_spaces(link.text)
         for link in page.select('.pill a:not(.pill-item--selected)')
     ] == [
-        '10 sending', '0 delivered', '0 failed'
+        '10 sending text messages', '0 delivered text messages', '0 failed text messages'
     ]
     assert page.select_one('p.hint').text.strip() == 'Report is 50% complete…'
 
@@ -215,10 +215,34 @@ def test_should_show_job_without_notifications(
         normalize_spaces(link.text)
         for link in page.select('.pill a:not(.pill-item--selected)')
     ] == [
-        '10 sending', '0 delivered', '0 failed'
+        '10 sending text messages', '0 delivered text messages', '0 failed text messages'
     ]
     assert page.select_one('p.hint').text.strip() == 'Report is 50% complete…'
     assert page.select_one('tbody').text.strip() == 'No messages to show yet…'
+
+
+def test_should_show_job_with_sending_limit_exceeded_status(
+    client_request,
+    service_one,
+    active_user_with_permissions,
+    mock_get_service_template,
+    mock_get_job_with_sending_limits_exceeded,
+    mock_get_notifications_with_no_notifications,
+    mock_get_service_data_retention,
+    fake_uuid,
+):
+    page = client_request.get(
+        'main.view_job',
+        service_id=service_one['id'],
+        job_id=fake_uuid,
+    )
+
+    assert normalize_spaces(page.select('main p')[1].text) == (
+        "Notify cannot send these messages because you have reached your daily limit. You can only send 1,000 messages per day." # noqa
+    )
+    assert normalize_spaces(page.select('main p')[2].text) == (
+        "Upload this spreadsheet again tomorrow or contact the GOV.UK Notify team to raise the limit."
+    )
 
 
 @freeze_time("2020-01-10 2:0:0")
@@ -283,6 +307,15 @@ def test_should_show_old_job(
     assert not page.select('p.hint')
     assert not page.select('a[download]')
     assert page.select_one('tbody').text.strip() == expected_message
+    assert [
+        normalize_spaces(column.text)
+        for column in page.select('main .govuk-grid-column-one-quarter')
+    ] == [
+        '1 total text messages',
+        '1 sending text message',
+        '0 delivered text messages',
+        '0 failed text messages',
+    ]
 
 
 @freeze_time("2016-01-01 11:09:00.061258")

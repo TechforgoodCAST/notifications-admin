@@ -4,7 +4,6 @@ import uuid
 from functools import partial
 from unittest.mock import ANY, call
 
-import pyexcel
 import pytest
 from bs4 import BeautifulSoup
 from flask import url_for
@@ -761,10 +760,6 @@ def test_reports_page(
     ).attrs['href'] == '/platform-admin/reports/live-services.csv'
 
     assert page.find(
-        'a', text="Download performance platform report (.xlsx)"
-    ).attrs['href'] == '/platform-admin/reports/performance-platform.xlsx'
-
-    assert page.find(
         'a', text="Monthly notification statuses for live services"
     ).attrs['href'] == url_for('main.notifications_sent_by_service')
 
@@ -803,35 +798,6 @@ def test_get_live_services_report(platform_admin_client, mocker):
     )
 
 
-def test_get_performance_platform_report(platform_admin_client, mocker):
-
-    mocker.patch(
-        'app.service_api_client.get_live_services_data',
-        return_value={'data': [
-            {'service_id': 'abc123', 'service_name': 'jessie the oak tree', 'organisation_name': 'Forest',
-                'consent_to_research': True, 'contact_name': 'Forest fairy', 'organisation_type': 'Ecosystem',
-                'contact_email': 'forest.fairy@digital.cabinet-office.gov.uk', 'contact_mobile': '+447700900986',
-                'live_date': 'Sat, 29 Mar 2014 00:00:00 GMT', 'sms_volume_intent': 100, 'email_volume_intent': 50,
-                'letter_volume_intent': 20, 'sms_totals': 300, 'email_totals': 1200, 'letter_totals': 0},
-            {'service_id': 'def456', 'service_name': 'james the pine tree', 'organisation_name': 'Forest',
-                'consent_to_research': None, 'contact_name': None, 'organisation_type': 'Ecosystem',
-                'contact_email': None, 'contact_mobile': None,
-                'live_date': None, 'sms_volume_intent': None, 'email_volume_intent': 60,
-                'letter_volume_intent': 0, 'sms_totals': 0, 'email_totals': 0, 'letter_totals': 0},
-        ]}
-    )
-    response = platform_admin_client.get(url_for('main.performance_platform_xlsx'))
-    assert response.status_code == 200
-    assert pyexcel.get_array(
-        file_type='xlsx',
-        file_stream=response.get_data(),
-    ) == [
-        ['service_id', 'agency', 'service_name', '_timestamp', 'service', 'count'],
-        ['abc123', 'Forest', 'jessie the oak tree', '2014-03-29T00:00:00Z', 'govuk-notify', 1],
-        ['def456', 'Forest', 'james the pine tree', '', 'govuk-notify', 1],
-    ]
-
-
 def test_get_notifications_sent_by_service_shows_date_form(client_request, platform_admin_user):
     client_request.login(platform_admin_user)
     page = client_request.get('main.notifications_sent_by_service')
@@ -866,13 +832,13 @@ def test_get_notifications_sent_by_service_validates_form(mocker, client_request
     assert mock_get_stats_from_api.called is False
 
 
-def test_usage_for_all_services_when_no_results_for_date(client_request, platform_admin_user, mocker):
+def test_get_billing_report_when_no_results_for_date(client_request, platform_admin_user, mocker):
     client_request.login(platform_admin_user)
 
-    mocker.patch("app.main.views.platform_admin.billing_api_client.get_usage_for_all_services",
+    mocker.patch("app.main.views.platform_admin.billing_api_client.get_data_for_billing_report",
                  return_value=[])
 
-    page = client_request.post('main.usage_for_all_services',
+    page = client_request.post('main.get_billing_report',
                                _expected_status=200,
                                _data={'start_date': '2019-01-01', 'end_date': '2019-03-31'})
 
@@ -880,29 +846,37 @@ def test_usage_for_all_services_when_no_results_for_date(client_request, platfor
     assert normalize_spaces(error.text) == 'No results for dates'
 
 
-def test_usage_for_all_services_when_calls_api_and_download_data(platform_admin_client, mocker):
-    mocker.patch("app.main.views.platform_admin.billing_api_client.get_usage_for_all_services",
-                 return_value=[{'letter_breakdown': '6 second class letters at 45p\n2 first class letters at 35p\n',
-                                'letter_cost': 3.4,
-                                'organisation_id': '7832a1be-a1f0-4f2a-982f-05adfd3d6354',
-                                'organisation_name': 'Org for a - with sms and letter',
-                                'service_id': '48e82ac0-c8c4-4e46-8712-c83c35a94006',
-                                'service_name': 'a - with sms and letter',
-                                'sms_cost': 0, 'sms_fragments': 0
-                                }])
+def test_get_billing_report_when_calls_api_and_download_data(platform_admin_client, mocker):
+    mocker.patch(
+        "app.main.views.platform_admin.billing_api_client.get_data_for_billing_report",
+        return_value=[{
+            'letter_breakdown': '6 second class letters at 45p\n2 first class letters at 35p\n',
+            'letter_cost': 3.4,
+            'organisation_id': '7832a1be-a1f0-4f2a-982f-05adfd3d6354',
+            'organisation_name': 'Org for a - with sms and letter',
+            'service_id': '48e82ac0-c8c4-4e46-8712-c83c35a94006',
+            'service_name': 'a - with sms and letter',
+            'sms_cost': 0,
+            'sms_fragments': 0,
+            'purchase_order_number': 'PO1234',
+            'contact_names': 'Anne, Marie, Josh',
+            'contact_email_addresses': 'billing@example.com, accounts@example.com',
+            'billing_reference': 'Notify2020'
+        }]
+    )
 
-    response = platform_admin_client.post(url_for('main.usage_for_all_services'),
+    response = platform_admin_client.post(url_for('main.get_billing_report'),
                                           data={'start_date': '2019-01-01', 'end_date': '2019-03-31'})
 
     assert response.status_code == 200
     assert response.content_type == 'text/csv; charset=utf-8'
     assert response.headers['Content-Disposition'] == (
-        'attachment; filename="Usage for all services from {} to {}.csv"'.format('2019-01-01', '2019-03-31')
+        'attachment; filename="Billing Report from {} to {}.csv"'.format('2019-01-01', '2019-03-31')
     )
 
     assert response.get_data(as_text=True) == (
-        'organisation_id,organisation_name,service_id,service_name,' +
-        'sms_cost,sms_fragments,letter_cost,letter_breakdown' +
+        'organisation_id,organisation_name,service_id,service_name,sms_cost,sms_fragments,letter_cost' +
+        ',letter_breakdown,purchase_order_number,contact_names,contact_email_addresses,billing_reference' +
 
         '\r\n' +
 
@@ -915,7 +889,8 @@ def test_usage_for_all_services_when_calls_api_and_download_data(platform_admin_
         '3.4,' +
         '"6 second class letters at 45p' +
         '\n' +
-        '2 first class letters at 35p"' +
+        '2 first class letters at 35p",' +
+        'PO1234,"Anne, Marie, Josh","billing@example.com, accounts@example.com",Notify2020'
 
         '\r\n'
     )
@@ -928,9 +903,9 @@ def test_get_notifications_sent_by_service_calls_api_and_downloads_data(
     service_two,
 ):
     api_data = [
-        ['Tue, 01 Jan 2019 00:00:00 GMT', SERVICE_ONE_ID, service_one['name'], 'email', 191, 0, 0, 14, 0, 0],
-        ['Tue, 01 Jan 2019 00:00:00 GMT', SERVICE_ONE_ID, service_one['name'], 'sms', 42, 0, 0, 8, 0, 0],
-        ['Tue, 01 Jan 2019 00:00:00 GMT', SERVICE_TWO_ID, service_two['name'], 'email', 3, 1, 0, 2, 0, 0],
+        ['2019-01-01', SERVICE_ONE_ID, service_one['name'], 'email', 191, 0, 0, 14, 0, 0],
+        ['2019-01-01', SERVICE_ONE_ID, service_one['name'], 'sms', 42, 0, 0, 8, 0, 0],
+        ['2019-01-01', SERVICE_TWO_ID, service_two['name'], 'email', 3, 1, 0, 2, 0, 0],
     ]
     mocker.patch('app.main.views.platform_admin.notification_api_client.get_notification_status_by_service',
                  return_value=api_data)

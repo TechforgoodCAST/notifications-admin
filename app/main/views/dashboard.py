@@ -30,13 +30,12 @@ from app.utils import (
     DELIVERED_STATUSES,
     FAILURE_STATUSES,
     REQUESTED_STATUSES,
-    Spreadsheet,
-    generate_next_dict,
-    generate_previous_dict,
-    get_current_financial_year,
     service_has_permission,
-    user_has_permissions,
 )
+from app.utils.csv import Spreadsheet
+from app.utils.pagination import generate_next_dict, generate_previous_dict
+from app.utils.time import get_current_financial_year
+from app.utils.user import user_has_permissions
 
 
 @main.route("/services/<uuid:service_id>/dashboard")
@@ -49,8 +48,8 @@ def old_service_dashboard(service_id):
 @user_has_permissions()
 def service_dashboard(service_id):
 
-    if session.get('invited_user'):
-        session.pop('invited_user', None)
+    if session.get('invited_user_id'):
+        session.pop('invited_user_id', None)
         session['service_id'] = service_id
 
     if current_service.has_permission('broadcast'):
